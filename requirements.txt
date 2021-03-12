@@ -1,0 +1,4 @@
+pillow
+urllib3
+opencv-python
+scikit-learn

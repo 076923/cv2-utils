@@ -1,0 +1,4 @@
+FLIP_MODE_X = 0
+FLIP_MODE_Y = 1
+FLIP_MODE_XY = -1
+
