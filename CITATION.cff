@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Python OpenCV Utilities"
+abstract: >-
+  Python OpenCV Utilities (cv2u) is a drop-in replacement for the OpenCV
+  Python module (import cv2u as cv). It keeps every OpenCV function and its
+  type information, and adds utilities such as crop-free image rotation,
+  DBSCAN color clustering, gamma correction, edge enhancement, gradient
+  images, point-in-polygon tests and Unicode (e.g. Korean) text rendering
+  with TrueType fonts.
+authors:
+  - family-names: Yun
+    given-names: Daehee
+    email: s076923@gmail.com
+contact:
+  - family-names: Yun
+    given-names: Daehee
+    email: s076923@gmail.com
+repository-code: "https://github.com/076923/cv2-utils"
+repository-artifact: "https://pypi.org/project/python-opencv-utils/"
+url: "https://076923.github.io/cv2-utils/"
+license: Apache-2.0
+keywords:
+  - opencv
+  - opencv-python
+  - cv2
+  - computer vision
+  - image processing
+  - image rotation
+  - DBSCAN
+  - color clustering
+  - gamma correction
+  - edge detection
+  - point in polygon
+  - Unicode text rendering
+  - Python
+references:
+  - type: software
+    title: "OpenCV: Open Source Computer Vision Library"
+    authors:
+      - name: "The OpenCV Team"
+    url: "https://opencv.org/"
+    repository-code: "https://github.com/opencv/opencv"
+    license: Apache-2.0

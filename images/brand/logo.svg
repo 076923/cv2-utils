@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="cv2u logo">
+  <title>cv2u</title>
+  <defs>
+    <linearGradient id="cv2u-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5B4FD9"/>
+      <stop offset="1" stop-color="#17A6B9"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#cv2u-bg)"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M96 186V138A42 42 0 0 1 138 96H186 M326 96H374A42 42 0 0 1 416 138V186 M416 326V374A42 42 0 0 1 374 416H326 M186 416H138A42 42 0 0 1 96 374V326" stroke-width="30"/>
+    <rect x="172" y="172" width="168" height="168" rx="14" stroke-width="10" opacity="0.35"/>
+    <rect x="172" y="172" width="168" height="168" rx="18" stroke-width="26" transform="rotate(22 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="24" fill="#fff"/>
+</svg>

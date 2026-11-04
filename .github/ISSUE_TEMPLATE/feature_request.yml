@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest a new utility or an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: Function signature and a short usage example.
+      render: python
