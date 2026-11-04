@@ -141,7 +141,7 @@ Changelog = "https://github.com/076923/cv2-utils/blob/main/CHANGELOG.md"
 Security = "https://github.com/076923/cv2-utils/security/policy"
 
 [dependency-groups]
-test = ["pytest>=8", "pytest-cov>=6"]
+test = ["pytest>=8", "pytest-cov>=7.1.0"]
 typing = ["mypy>=1.13", "pyright>=1.1.390"]
 lint = ["ruff>=0.8"]
 docs = ["zensical>=0.0.74", "mkdocstrings-python>=2.0"]
