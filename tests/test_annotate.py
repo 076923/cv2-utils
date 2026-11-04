@@ -1,21 +1,7 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 import cv2u as cv
-
-
-def _find_font():
-    candidates = [
-        Path("C:/Windows/Fonts/malgun.ttf"),  # has Korean glyphs
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
-        *Path("/usr/share/fonts").rglob("*.ttf"),
-    ]
-    return next((p for p in candidates if p.is_file()), None)
-
 
 # --- drawLabel ---------------------------------------------------------------------
 
@@ -56,10 +42,8 @@ def test_drawLabel_gray_image_with_bgr_color_uses_luminance():
 
 
 @pytest.mark.parametrize("channels", [1, 3, 4])
-def test_drawLabel_unicode_with_font(channels):
-    font = _find_font()
-    if font is None:
-        pytest.skip(f"no TrueType font found on {sys.platform}")
+def test_drawLabel_unicode_with_font(channels, font_path):
+    font = font_path
     shape = (80, 140) if channels == 1 else (80, 140, channels)
     img = np.zeros(shape, np.uint8)
     out = cv.drawLabel(img, (10, 40, 100, 30), "고양이 cat", (0, 200, 255), fontPath=font, fontSize=18)

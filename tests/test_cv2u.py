@@ -1,5 +1,4 @@
 import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -343,21 +342,9 @@ def test_flip_flags(bgr):
 # --- imgproc ---------------------------------------------------------------------
 
 
-def _find_font():
-    candidates = [
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
-        Path("/Library/Fonts/Arial.ttf"),
-        *Path("/usr/share/fonts").rglob("*.ttf"),
-    ]
-    return next((p for p in candidates if p.is_file()), None)
-
-
 @pytest.mark.parametrize("gray_input", [False, True])
-def test_putTextEx(bgr, gray_input):
-    font = _find_font()
-    if font is None:
-        pytest.skip(f"no TrueType font found on {sys.platform}")
+def test_putTextEx(bgr, gray_input, font_path):
+    font = font_path
     src = np.zeros((40, 60), np.uint8) if gray_input else np.zeros_like(bgr)
     before = src.copy()
     dst = cv.putTextEx(src, "Hi 한글", (2, 2), font, 20, (255, 255, 255))  # pathlib.Path is accepted

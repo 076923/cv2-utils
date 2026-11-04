@@ -130,7 +130,7 @@ jobs:
           path: dist/
       - name: Install build dependencies (pre-release Python)
         if: matrix.experimental
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjpeg-dev zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjpeg-dev zlib1g-dev libfreetype-dev
       - name: Pin lowest dependencies
         if: matrix.variant == 'lowest'
         run: pip install "numpy==2.0.*" "opencv-python==5.0.0.93" "pillow==10.1.*" "scikit-learn==1.4.2"
