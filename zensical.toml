@@ -1,0 +1,74 @@
+# Documentation site, built with Zensical (https://zensical.org).
+# Build: zensical build --strict    Preview: zensical serve
+
+[project]
+site_name = "Python OpenCV Utilities"
+site_description = "Drop-in cv2 replacement (import cv2u as cv) with extra OpenCV utilities: crop-free rotation, DBSCAN color clustering, Unicode text rendering, gradients and more"
+site_author = "Daehee Yun"
+site_url = "https://076923.github.io/cv2-utils/"
+repo_url = "https://github.com/076923/cv2-utils"
+repo_name = "076923/cv2-utils"
+edit_uri = "edit/main/docs/"
+copyright = "Copyright &copy; 2021-2026 Daehee Yun"
+nav = [
+  { "Home" = "index.md" },
+  { "Design principles" = "principles.md" },
+  { "API reference" = "api.md" },
+  { "Changelog" = "changelog.md" },
+]
+
+[project.theme]
+language = "en"
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.top",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/076923/cv2-utils"
+name = "Source on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/python-opencv-utils/"
+name = "python-opencv-utils on PyPI"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+tables = {}
+toc.permalink = true
+pymdownx.highlight = {}
+pymdownx.superfences = {}
+pymdownx.snippets.check_paths = true
+
+# API reference rendered from the Google-style docstrings.
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+show_source = false
+show_root_heading = true
+show_root_full_path = false
+show_signature_annotations = true
+separate_signature = true
+members_order = "source"
+heading_level = 3

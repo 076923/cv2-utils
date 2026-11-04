@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: pip install ruff
+      - run: ruff check --output-format=github .
+      - run: ruff format --check .
+
+  typing:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: pip install ".[cluster]" --group typing
+      - run: mypy
+      # Check what users see: pyright applies its public-API rules (reportPrivateImportUsage) only to
+      # installed packages, so run it on the installed wheel from outside the checkout.
+      - name: pyright (as a downstream user)
+        run: |
+          cp -r tests/typing "$RUNNER_TEMP/typing"
+          cd "$RUNNER_TEMP"
+          pyright typing
+      # The re-export stub must be generated from the minimum supported OpenCV version.
+      - name: Check cv2u/_cv2_exports.pyi is up to date
+        run: |
+          pip install "opencv-python==5.0.0.93"
+          python tools/generate_cv2_exports.py --check
+
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: pip install zizmor
+      - run: zizmor --format=github .github/workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # hatch-vcs derives the version from git tags
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+
+  # Tests run against the built wheel, not the source tree.
+  # `pytest` (not `python -m pytest`) with --import-mode=importlib keeps the checkout off sys.path.
+  test:
+    needs: build
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.variant != 'standard' && format(', {0}', matrix.variant) || '' }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental || false }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        # An explicit variant axis: without it, an `include` entry with the same os and python-version is merged into
+        # the existing job (and two such entries overwrite each other) instead of adding a new job.
+        variant: [standard]
+        include:
+          - { os: windows-latest, python-version: "3.15", variant: standard }
+          - { os: macos-latest, python-version: "3.15", variant: standard }
+          - { os: ubuntu-latest, python-version: "3.14", variant: coverage }
+          # Without the [cluster] extra: DBSCAN must fail with a helpful ImportError.
+          - { os: ubuntu-latest, python-version: "3.14", variant: no-extras }
+          # Oldest supported dependency versions.
+          - { os: ubuntu-latest, python-version: "3.11", variant: lowest }
+          # Next Python (pre-release), core features only: scipy (via the [cluster] extra) cannot be built from
+          # source on the runner, and NumPy/Pillow may have no wheels yet, so they are built. Failures do not block.
+          - { os: ubuntu-latest, python-version: "3.16", variant: no-extras, experimental: true }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Install build dependencies (pre-release Python)
+        if: matrix.experimental
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjpeg-dev zlib1g-dev libfreetype-dev
+      - name: Pin lowest dependencies
+        if: matrix.variant == 'lowest'
+        run: pip install "numpy==2.0.*" "opencv-python==5.0.0.93" "pillow==10.1.*" "scikit-learn==1.4.2"
+      - name: Install wheel
+        shell: bash
+        env:
+          EXTRAS: ${{ matrix.variant == 'no-extras' && 'none' || 'cluster' }}
+        run: |
+          wheel=$(ls dist/*.whl)
+          if [ "$EXTRAS" = none ]; then pip install "$wheel"; else pip install "${wheel}[${EXTRAS}]"; fi
+          pip install "pytest>=8" "pytest-cov>=6"
+          pip check
+      - name: Test
+        if: matrix.variant != 'coverage'
+        run: pytest
+      - name: Test with coverage
+        if: matrix.variant == 'coverage'
+        run: |
+          pytest --cov --cov-report=term
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"

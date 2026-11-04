@@ -1,5 +1,247 @@
-from cv2 import *
-from .core import *
-from .imgcodecs import *
-from .imgproc import *
-from .flag import *
+"""Python OpenCV Utilities.
+
+``cv2u`` is a drop-in replacement for ``cv2``. Import it the same way the
+official OpenCV documentation imports ``cv2`` (``import cv2 as cv``)::
+
+    import cv2u as cv
+
+Every attribute that ``cv2u`` does not define itself is looked up on the
+``cv2`` module, so ``cv.imread``, ``cv.COLOR_BGR2GRAY``, ``cv.dnn`` and so on
+all work as usual, alongside the extensions provided by this package.
+
+Requires OpenCV 5.
+"""
+
+from importlib.metadata import PackageNotFoundError, version
+from typing import TYPE_CHECKING, Any
+
+import cv2 as _cv2
+
+if int(_cv2.__version__.split(".")[0]) < 5:
+    # Another distribution (e.g. opencv-contrib-python 4.x) may provide ``cv2`` alongside ours.
+    raise ImportError(
+        f"cv2u requires OpenCV 5 or newer, but cv2 {_cv2.__version__} is installed "
+        f"({_cv2.__file__}). Upgrade it with: pip install -U 'opencv-python>=5'"
+    )
+
+if TYPE_CHECKING:
+    # Lets type checkers and IDEs see OpenCV's own signatures (``cv.imread`` etc.).
+    # At runtime these names come from ``__getattr__`` below.
+    from . import _cv2_exports
+    from ._cv2_exports import *  # noqa: F403
+
+from .core import (
+    DBSCAN,
+    DHEdge,
+    cartesianToPolar,
+    centerPoint,
+    clusterPoints,
+    colorQuantize,
+    cropEx,
+    cropToContent,
+    dominantColors,
+    drawDBSCAN,
+    gammaCorrection,
+    hconcatEx,
+    imcolor,
+    imcolorLike,
+    inRangeEx,
+    isInside,
+    kmeansColors,
+    makeGradient,
+    meanShiftColors,
+    mergeTiles,
+    montage,
+    overlayImage,
+    padToMultiple,
+    padToSize,
+    peakColors,
+    polarToCartesian,
+    rotateEx,
+    splitTiles,
+    vconcatEx,
+)
+from .flag import (
+    ALL_CONTOURS,
+    DDEPTH_SAME,
+    FLIP_MODE_X,
+    FLIP_MODE_XY,
+    FLIP_MODE_Y,
+    KEY_BACKSPACE,
+    KEY_ENTER,
+    KEY_ESC,
+    KEY_SPACE,
+    KEY_TAB,
+    REDUCE_TO_COL,
+    REDUCE_TO_ROW,
+    WAIT_FOREVER,
+)
+from .highgui import (
+    imshowEx,
+    imshowInline,
+)
+from .imgcodecs import (
+    fromPillow,
+    imdecodeBase64,
+    imencodeBase64,
+    imreadEx,
+    imwriteEx,
+    toPillow,
+    urlread,
+)
+from .imgproc import (
+    adjustBrightnessContrast,
+    adjustHSV,
+    autoCanny,
+    autoContrast,
+    bgrToHex,
+    cutout,
+    diffMask,
+    drawDashedLine,
+    drawDashedRectangle,
+    drawHistogram,
+    drawLabel,
+    equalizeHistEx,
+    fillHoles,
+    findContoursEx,
+    findTemplate,
+    fourPointTransform,
+    hexToBGR,
+    largestComponent,
+    letterbox,
+    overlayMask,
+    putTextEx,
+    removeSmallObjects,
+    resizeEx,
+    sharpnessScore,
+    skeletonize,
+    ssim,
+    toBGR,
+    toBGRA,
+    toGray,
+    translate,
+    unsharpMask,
+    whiteBalance,
+)
+from .videoio import (
+    VideoInfo,
+    readFrameAt,
+    readFrames,
+    videoInfo,
+    writeVideo,
+)
+
+try:
+    __version__ = version("python-opencv-utils")
+except PackageNotFoundError:  # pragma: no cover - running from a source tree that is not installed
+    __version__ = "0.0.0"
+
+# Only the cv2u extensions. OpenCV names are reachable as attributes, not through ``import *``.
+__all__ = [
+    "ALL_CONTOURS",
+    "DBSCAN",
+    "DDEPTH_SAME",
+    "FLIP_MODE_X",
+    "FLIP_MODE_XY",
+    "FLIP_MODE_Y",
+    "KEY_BACKSPACE",
+    "KEY_ENTER",
+    "KEY_ESC",
+    "KEY_SPACE",
+    "KEY_TAB",
+    "REDUCE_TO_COL",
+    "REDUCE_TO_ROW",
+    "WAIT_FOREVER",
+    "DHEdge",
+    "VideoInfo",
+    "adjustBrightnessContrast",
+    "adjustHSV",
+    "autoCanny",
+    "autoContrast",
+    "bgrToHex",
+    "cartesianToPolar",
+    "centerPoint",
+    "clusterPoints",
+    "colorQuantize",
+    "cropEx",
+    "cropToContent",
+    "cutout",
+    "diffMask",
+    "dominantColors",
+    "drawDBSCAN",
+    "drawDashedLine",
+    "drawDashedRectangle",
+    "drawHistogram",
+    "drawLabel",
+    "equalizeHistEx",
+    "fillHoles",
+    "findContoursEx",
+    "findTemplate",
+    "fourPointTransform",
+    "fromPillow",
+    "gammaCorrection",
+    "hconcatEx",
+    "hexToBGR",
+    "imcolor",
+    "imcolorLike",
+    "imdecodeBase64",
+    "imencodeBase64",
+    "imreadEx",
+    "imshowEx",
+    "imshowInline",
+    "imwriteEx",
+    "inRangeEx",
+    "isInside",
+    "kmeansColors",
+    "largestComponent",
+    "letterbox",
+    "makeGradient",
+    "meanShiftColors",
+    "mergeTiles",
+    "montage",
+    "overlayImage",
+    "overlayMask",
+    "padToMultiple",
+    "padToSize",
+    "peakColors",
+    "polarToCartesian",
+    "putTextEx",
+    "readFrameAt",
+    "readFrames",
+    "removeSmallObjects",
+    "resizeEx",
+    "rotateEx",
+    "sharpnessScore",
+    "skeletonize",
+    "splitTiles",
+    "ssim",
+    "toBGR",
+    "toBGRA",
+    "toGray",
+    "toPillow",
+    "translate",
+    "unsharpMask",
+    "urlread",
+    "vconcatEx",
+    "videoInfo",
+    "whiteBalance",
+    "writeVideo",
+]
+
+if TYPE_CHECKING:
+    # Mark the OpenCV names as public API of this typed package (pyright's reportPrivateImportUsage,
+    # mypy's --no-implicit-reexport). Runtime ``from cv2u import *`` still exports only the extensions.
+    __all__ += _cv2_exports.__all__
+
+
+def __getattr__(name: str) -> Any:
+    # OpenCV's ``cv2/__init__.py`` defines ``__all__ = []``, so
+    # ``from cv2 import *`` re-exports nothing. Delegate lookups instead.
+    try:
+        return getattr(_cv2, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(dir(_cv2)))

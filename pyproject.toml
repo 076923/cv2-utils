@@ -1,0 +1,209 @@
+[build-system]
+requires = ["hatchling>=1.27", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "python-opencv-utils"
+dynamic = ["version"]
+description = "Drop-in cv2 replacement (import cv2u as cv) with extra OpenCV utilities: crop-free rotation, DBSCAN color clustering, Unicode text rendering, gradients and more"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Daehee Yun", email = "s076923@gmail.com" }]
+maintainers = [{ name = "Daehee Yun", email = "s076923@gmail.com" }]
+requires-python = ">=3.11"
+keywords = [
+    "opencv",
+    "opencv-python",
+    "opencv5",
+    "cv2",
+    "cv",
+    "computer-vision",
+    "image-processing",
+    "image-manipulation",
+    "image-rotation",
+    "rotate-image",
+    "dbscan",
+    "color-clustering",
+    "image-segmentation",
+    "gamma-correction",
+    "edge-detection",
+    "gradient",
+    "point-in-polygon",
+    "polar-coordinates",
+    "centroid",
+    "puttext",
+    "unicode-text",
+    "korean-text",
+    "truetype",
+    "image-from-url",
+    "unicode-path",
+    "korean-path",
+    "resize",
+    "aspect-ratio",
+    "letterbox",
+    "image-concatenation",
+    "alpha-blending",
+    "overlay",
+    "video",
+    "video-frames",
+    "jupyter",
+    "document-scanner",
+    "perspective-transform",
+    "canny",
+    "pillow-conversion",
+    "base64",
+    "bounding-box",
+    "segmentation-mask",
+    "crop",
+    "montage",
+    "histogram-equalization",
+    "clahe",
+    "sharpen",
+    "dominant-colors",
+    "color-palette",
+    "color-quantization",
+    "kmeans",
+    "mean-shift",
+    "histogram-peaks",
+    "image-segmentation-colors",
+    "point-clustering",
+    "grayscale",
+    "contours",
+    "fill-holes",
+    "remove-small-objects",
+    "template-matching",
+    "trim-border",
+    "hex-color",
+    "brightness-contrast",
+    "white-balance",
+    "auto-levels",
+    "ssim",
+    "blur-detection",
+    "image-diff",
+    "image-tiling",
+    "padding",
+    "dashed-line",
+    "histogram",
+    "skeletonization",
+    "background-removal",
+    "numpy",
+    "pillow",
+    "utilities",
+    "extensions",
+    "type-hints",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=2.0",
+    "opencv-python>=5.0",
+    "pillow>=10.1",
+]
+
+[project.optional-dependencies]
+# Needed only for meanShiftColors, DBSCAN and clusterPoints.
+cluster = ["scikit-learn>=1.4.2"]
+
+# Labels follow https://packaging.python.org/en/latest/specifications/well-known-project-urls/
+[project.urls]
+Homepage = "https://076923.github.io/cv2-utils/"
+Documentation = "https://076923.github.io/cv2-utils/"
+"API Reference" = "https://076923.github.io/cv2-utils/api/"
+Source = "https://github.com/076923/cv2-utils"
+Download = "https://pypi.org/project/python-opencv-utils/#files"
+Issues = "https://github.com/076923/cv2-utils/issues"
+Changelog = "https://github.com/076923/cv2-utils/blob/main/CHANGELOG.md"
+"Release Notes" = "https://github.com/076923/cv2-utils/releases"
+Security = "https://github.com/076923/cv2-utils/security/policy"
+
+[dependency-groups]
+test = ["pytest>=8", "pytest-cov>=6"]
+typing = ["mypy>=1.13", "pyright>=1.1.390"]
+lint = ["ruff>=0.8"]
+docs = ["zensical>=0.0.74", "mkdocstrings-python>=2.0"]
+dev = [
+    { include-group = "test" },
+    { include-group = "typing" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    "pre-commit>=3",
+]
+
+# --------------------------------------------------------------------------- build
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Used only when no git metadata is available (e.g. a plain source download).
+fallback_version = "0.0.0"
+
+[tool.hatch.build.targets.sdist]
+include = ["cv2u", "tests", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["cv2u"]
+
+# --------------------------------------------------------------------------- tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+
+[tool.coverage.run]
+# source_pkgs (not source): measure the imported package even when it is an installed wheel.
+source_pkgs = ["cv2u"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90
+exclude_also = ["if TYPE_CHECKING:"]
+
+# --------------------------------------------------------------------------- typing
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+files = ["cv2u", "tests/typing"]
+
+[[tool.mypy.overrides]]
+# Optional, imported lazily: scikit-learn (cluster extra) and IPython (provided by Jupyter).
+module = ["sklearn.*", "IPython.*"]
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------- lint
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["cv2u/_cv2_exports.pyi"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]

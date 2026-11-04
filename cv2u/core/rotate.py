@@ -1,20 +1,45 @@
 import math
+from typing import Any
+
 import cv2
+import numpy as np
+
+__all__ = ["rotateEx"]
 
 
-def rotateEx(src, angle, scale=1, flags=None, borderMode=None, borderValue=None):
+def rotateEx(
+    src: np.ndarray,
+    angle: float,
+    scale: float = 1.0,
+    flags: int | None = None,
+    borderMode: int | None = None,
+    borderValue: Any = None,
+) -> np.ndarray:
+    """Rotate an image around its center without cropping the corners.
+
+    The output canvas is enlarged so the whole rotated (and scaled) image fits.
+    ``flags``, ``borderMode`` and ``borderValue`` are forwarded to ``cv.warpAffine``.
+    """
     height, width = src.shape[:2]
     center = (width / 2, height / 2)
     matrix = cv2.getRotationMatrix2D(center, angle, scale)
 
     radians = math.radians(angle)
-    sin = math.sin(radians)
-    cos = math.cos(radians)
-    bound_width = int((height * abs(sin)) + (width * abs(cos)))
-    bound_height = int((height * abs(cos)) + (width * abs(sin)))
+    sin = abs(math.sin(radians))
+    cos = abs(math.cos(radians))
+    # round(), not int(): 59.99999 from floating point error must not lose a pixel row.
+    bound_width = round((height * sin + width * cos) * scale)
+    bound_height = round((height * cos + width * sin) * scale)
 
     matrix[0, 2] += (bound_width / 2) - center[0]
     matrix[1, 2] += (bound_height / 2) - center[1]
 
-    dst = cv2.warpAffine(src, matrix, (bound_width, bound_height), flags=None, borderMode=None, borderValue=None)
-    return dst
+    kwargs: dict[str, Any] = {}
+    if flags is not None:
+        kwargs["flags"] = flags
+    if borderMode is not None:
+        kwargs["borderMode"] = borderMode
+    if borderValue is not None:
+        kwargs["borderValue"] = borderValue
+
+    return cv2.warpAffine(src, matrix, (bound_width, bound_height), **kwargs)

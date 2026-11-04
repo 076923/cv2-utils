@@ -1,0 +1,106 @@
+"""Channel conversions that work whatever the input already is, and color notations."""
+
+import string
+from collections.abc import Sequence
+
+import cv2
+import numpy as np
+
+__all__ = ["bgrToHex", "hexToBGR", "toBGR", "toBGRA", "toGray"]
+
+
+def _channels(src: np.ndarray) -> int:
+    channels = 1 if src.ndim == 2 else int(src.shape[2])
+    if channels not in (1, 3, 4):
+        raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
+    return channels
+
+
+def _gray2d(src: np.ndarray) -> np.ndarray:
+    return src.reshape(src.shape[:2])
+
+
+def toGray(src: np.ndarray) -> np.ndarray:
+    """Convert a grayscale, BGR or BGRA image to single-channel grayscale.
+
+    ``cv.cvtColor(img, cv.COLOR_BGR2GRAY)`` raises an error when ``img`` is already grayscale, so code that accepts
+    any image needs a channel check first. Grayscale input is returned as a copy.
+
+    Raises:
+        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+    """
+    channels = _channels(src)
+    if channels == 1:
+        return _gray2d(src).copy()
+    out: np.ndarray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY if channels == 3 else cv2.COLOR_BGRA2GRAY)
+    return out
+
+
+def toBGR(src: np.ndarray) -> np.ndarray:
+    """Convert a grayscale, BGR or BGRA image to 3-channel BGR (the alpha channel is dropped).
+
+    Raises:
+        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+    """
+    channels = _channels(src)
+    if channels == 3:
+        return src.copy()
+    if channels == 1:
+        gray: np.ndarray = cv2.cvtColor(_gray2d(src), cv2.COLOR_GRAY2BGR)
+        return gray
+    bgr: np.ndarray = cv2.cvtColor(src, cv2.COLOR_BGRA2BGR)
+    return bgr
+
+
+def toBGRA(src: np.ndarray, alpha: float | None = None) -> np.ndarray:
+    """Convert a grayscale, BGR or BGRA image to 4-channel BGRA.
+
+    Args:
+        src: Image to convert.
+        alpha: Alpha value for images without an alpha channel. By default fully opaque (255 for 8-bit images,
+            65535 for 16-bit, 1.0 for float). For BGRA input, the existing alpha is kept unless this is given.
+
+    Raises:
+        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+    """
+    channels = _channels(src)
+    if channels == 4:
+        out = src.copy()
+    elif channels == 1:
+        out = cv2.cvtColor(_gray2d(src), cv2.COLOR_GRAY2BGRA)
+    else:
+        out = cv2.cvtColor(src, cv2.COLOR_BGR2BGRA)
+    if alpha is not None:
+        out[..., 3] = alpha
+    return out
+
+
+def hexToBGR(hexColor: str) -> tuple[int, ...]:
+    """Convert a CSS-style hex color to an OpenCV BGR tuple, e.g. ``"#ff8800"`` to ``(0, 136, 255)``.
+
+    Accepts ``"#rrggbb"``, ``"#rgb"`` and, with alpha, ``"#rrggbbaa"`` / ``"#rgba"`` (giving ``(b, g, r, a)``);
+    the ``#`` is optional. Saves reversing the channel order by hand, which is easy to get wrong.
+
+    Raises:
+        ValueError: If the text is not a hex color.
+    """
+    text = hexColor.strip().removeprefix("#")
+    if len(text) in (3, 4):
+        text = "".join(c * 2 for c in text)
+    if len(text) not in (6, 8) or any(c not in string.hexdigits for c in text):
+        raise ValueError(f"not a hex color: {hexColor!r}")
+    r, g, b = (int(text[i : i + 2], 16) for i in (0, 2, 4))
+    return (b, g, r, int(text[6:8], 16)) if len(text) == 8 else (b, g, r)
+
+
+def bgrToHex(color: Sequence[float]) -> str:
+    """Convert an OpenCV BGR (or BGRA) color to a hex string, e.g. ``(0, 136, 255)`` to ``"#ff8800"``.
+
+    Raises:
+        ValueError: If ``color`` does not have 3 or 4 values in ``[0, 255]``.
+    """
+    values = [round(float(c)) for c in color]
+    if len(values) not in (3, 4) or not all(0 <= v <= 255 for v in values):
+        raise ValueError(f"color must have 3 or 4 values in [0, 255], got {color!r}")
+    b, g, r = values[:3]
+    return f"#{r:02x}{g:02x}{b:02x}" + (f"{values[3]:02x}" if len(values) == 4 else "")

@@ -1,0 +1,27 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproducible example
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of the command below.
+      value: |
+        python -c "import sys, numpy, cv2, cv2u; print(sys.version, numpy.__version__, cv2.__version__, cv2u.__version__)"
+    validations:
+      required: true
