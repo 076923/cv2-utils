@@ -113,8 +113,9 @@ jobs:
           - { os: ubuntu-latest, python-version: "3.14", variant: no-extras }
           # Oldest supported dependency versions.
           - { os: ubuntu-latest, python-version: "3.11", variant: lowest }
-          # Next Python (pre-release). Dependencies may not ship wheels for it yet, so failures do not block.
-          - { os: ubuntu-latest, python-version: "3.16", experimental: true }
+          # Next Python (pre-release), core features only: scipy (via the [cluster] extra) cannot be built from
+          # source on the runner, and NumPy/Pillow may have no wheels yet, so they are built. Failures do not block.
+          - { os: ubuntu-latest, python-version: "3.16", variant: no-extras, experimental: true }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -127,6 +128,9 @@ jobs:
         with:
           name: dist
           path: dist/
+      - name: Install build dependencies (pre-release Python)
+        if: matrix.experimental
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjpeg-dev zlib1g-dev
       - name: Pin lowest dependencies
         if: matrix.variant == 'lowest'
         run: pip install "numpy==2.0.*" "opencv-python==5.0.0.93" "pillow==10.1.*" "scikit-learn==1.4.2"
