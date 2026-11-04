@@ -10,8 +10,11 @@ updates:
         patterns: ["*"]
     cooldown:
       default-days: 7
+  # Only bump a lower bound when the newest release falls outside it, so the
+  # tested minimum versions stay as they are.
   - package-ecosystem: pip
     directory: /
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: monthly
     cooldown:
