@@ -95,7 +95,7 @@ jobs:
   # `pytest` (not `python -m pytest`) with --import-mode=importlib keeps the checkout off sys.path.
   test:
     needs: build
-    name: test (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.variant && format(', {0}', matrix.variant) || '' }})
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.variant != 'standard' && format(', {0}', matrix.variant) || '' }})
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental || false }}
     permissions:
@@ -105,9 +105,12 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        # An explicit variant axis: without it, an `include` entry with the same os and python-version is merged into
+        # the existing job (and two such entries overwrite each other) instead of adding a new job.
+        variant: [standard]
         include:
-          - { os: windows-latest, python-version: "3.15" }
-          - { os: macos-latest, python-version: "3.15" }
+          - { os: windows-latest, python-version: "3.15", variant: standard }
+          - { os: macos-latest, python-version: "3.15", variant: standard }
           - { os: ubuntu-latest, python-version: "3.14", variant: coverage }
           # Without the [cluster] extra: DBSCAN must fail with a helpful ImportError.
           - { os: ubuntu-latest, python-version: "3.14", variant: no-extras }
