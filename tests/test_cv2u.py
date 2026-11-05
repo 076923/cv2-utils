@@ -24,10 +24,19 @@ def test_version():
     assert isinstance(cv.__version__, str)
 
 
-def test_requires_opencv5():
+def test_requires_supported_opencv():
     import cv2
 
-    assert int(cv2.__version__.split(".")[0]) >= 5
+    assert tuple(int(p) for p in cv2.__version__.split(".")[:2]) >= cv._opencv.MIN_VERSION == (4, 10)
+
+
+def test_missing_opencv_says_how_to_install():
+    import subprocess
+
+    code = "import sys; sys.modules['cv2'] = None\ntry:\n import cv2u\nexcept ImportError as e:\n print(e)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+    assert "python-opencv-utils[opencv]" in out
+    assert "[headless]" in out
 
 
 def test_cv2_passthrough():

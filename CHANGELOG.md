@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **OpenCV 4.10 and newer are supported again, alongside OpenCV 5.** 4.10.0.84 is the first OpenCV build for NumPy 2.
+- **The OpenCV distribution is chosen with an extra**: `[opencv]` (`opencv-python`), `[headless]`
+  (`opencv-python-headless`), `[contrib]` or `[contrib-headless]`. `opencv-python` is no longer a hard dependency,
+  so cv2u no longer installs a second, conflicting `cv2` next to a headless or contrib build. Without an extra, an
+  already installed OpenCV is used; `import cv2u` explains how to install one if there is none.
+  Upgrade with `pip install -U "python-opencv-utils[opencv]"` to keep the 0.1.0 behavior.
+
 ### Added
 
 - `imgproc`

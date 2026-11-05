@@ -1,7 +1,8 @@
 """Regression tests against golden images in ``tests/data``.
 
 Regenerate them with ``python tools/regenerate_goldens.py`` only when an output change is intended.
-Small tolerances absorb rounding differences between OpenCV's SIMD code paths on different CPUs.
+Small tolerances absorb rounding differences between OpenCV's SIMD code paths on different CPUs and between
+OpenCV 4 and 5, whose bilinear warps round differently along edges.
 """
 
 from pathlib import Path
@@ -33,11 +34,13 @@ def rotate_src():
 
 
 def test_rotateEx_45(rotate_src):
-    _assert_close(cv.rotateEx(rotate_src, 45), _read("rotateEx_45.png"))
+    _assert_close(cv.rotateEx(rotate_src, 45), _read("rotateEx_45.png"), max_abs=2, max_mismatch_ratio=0.03)
 
 
 def test_rotateEx_30_scale(rotate_src):
-    _assert_close(cv.rotateEx(rotate_src, 30, scale=0.5), _read("rotateEx_30_scale0.5.png"))
+    _assert_close(
+        cv.rotateEx(rotate_src, 30, scale=0.5), _read("rotateEx_30_scale0.5.png"), max_abs=2, max_mismatch_ratio=0.03
+    )
 
 
 def test_gammaCorrection(rotate_src):

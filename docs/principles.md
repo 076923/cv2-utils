@@ -89,7 +89,8 @@ cv2u adds names, it never replaces them. No extension may have the same name as 
 
 ## 4. Stay light
 
-The core depends only on `opencv-python`, `numpy` and `pillow`. Heavier dependencies are optional extras that are
+The core depends only on OpenCV (any distribution, chosen with an extra: `[opencv]`, `[headless]`, `[contrib]` or
+`[contrib-headless]`), `numpy` and `pillow`. Heavier dependencies are optional extras that are
 imported lazily, with an `ImportError` that says how to install them (`pip install "python-opencv-utils[cluster]"`).
 Environment-specific packages are never required: `imshowInline` uses IPython only when it is called in a notebook.
 Where OpenCV can do the job, it is used instead of an extra: `kmeansColors` is built on `cv.kmeans`, so palettes and

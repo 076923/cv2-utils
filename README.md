@@ -28,26 +28,31 @@ import cv2u as cv  # instead of: import cv2 as cv
 | PyPI package | `python-opencv-utils` |
 | Import name | `cv2u` |
 | Python | 3.11 – 3.15 |
-| OpenCV | 5.0+ (OpenCV 4 is not supported) |
+| OpenCV | 4.10+ and 5.x, any distribution (normal, headless, contrib) |
 | NumPy | 2.0+ |
 | Documentation | <https://076923.github.io/cv2-utils/> |
 
 ## Installation
 
+Choose the OpenCV distribution with an extra:
+
 ```bash
-pip install python-opencv-utils
-pip install "python-opencv-utils[cluster]"  # also installs scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
+pip install "python-opencv-utils[opencv]"            # opencv-python
+pip install "python-opencv-utils[headless]"          # opencv-python-headless (servers, Docker; no GUI)
+pip install "python-opencv-utils[contrib]"           # opencv-contrib-python
+pip install "python-opencv-utils[contrib-headless]"  # opencv-contrib-python-headless
+pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
 ```
 
-Dependencies (installed automatically): `opencv-python>=5`, `numpy>=2`, `pillow`.
+If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
+Dependencies: OpenCV 4.10 or newer (including OpenCV 5), `numpy>=2`, `pillow`.
 The optional `cluster` extra adds `scikit-learn` for `meanShiftColors`, `DBSCAN` and `clusterPoints`.
 `dominantColors`, `colorQuantize` and `kmeansColors` work without it (they use `cv.kmeans`).
 
 > [!NOTE]
-> This package depends on `opencv-python`. If you use a different OpenCV build
-> (`opencv-contrib-python`, `opencv-python-headless`, ...), install only one OpenCV
-> distribution in the environment, because they all provide the same `cv2` module and conflict with each other.
-> It must be OpenCV 5 or newer: `import cv2u` raises `ImportError` if an older `cv2` is found.
+> All OpenCV distributions provide the same `cv2` module and conflict with each other, so install only one of them.
+> `import cv2u` raises an `ImportError` with these instructions if no `cv2` (or one older than 4.10) is found.
+> On a headless build, `imshowEx` fails just like `cv.imshow`; everything else works.
 
 ## Usage
 
@@ -66,7 +71,7 @@ If a name exists in both, the `cv2u` version wins. You can always reach the orig
 `cv` is only a name, so `import cv2u as cv2` also works if you prefer it.
 
 Type checkers and IDEs see OpenCV's own signatures through `cv2u`, so autocompletion and type checking for
-`cv.imread` and friends keep working. Names added in OpenCV releases newer than 5.0 are typed as `Any`.
+`cv.imread` and friends keep working. Names the OpenCV 5.0 stubs do not have (added later, or only in OpenCV 4) are typed as `Any`.
 
 ### Everyday helpers
 

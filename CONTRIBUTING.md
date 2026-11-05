@@ -12,11 +12,12 @@ git clone https://github.com/076923/cv2-utils.git
 cd cv2-utils
 python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
-pip install -e ".[cluster]" --group dev   # requires pip >= 25.1
+pip install -e ".[opencv,cluster]" --group dev   # requires pip >= 25.1
 pre-commit install
 ```
 
-With [uv](https://docs.astral.sh/uv/): `uv sync --all-extras`.
+With [uv](https://docs.astral.sh/uv/): `uv sync --extra opencv --extra cluster`.
+Do not use `--all-extras`: it would install all four OpenCV distributions, which conflict with each other.
 
 ## Checks
 
@@ -29,14 +30,15 @@ zensical serve      # preview the documentation at http://localhost:8000
 ```
 
 CI builds the wheel once and runs the tests against it on Linux for every supported Python version,
-on Windows and macOS for the newest Python, without the `cluster` extra, and with the minimum dependency versions.
+on Windows and macOS for the newest Python, without the `cluster` extra, with the headless and contrib OpenCV
+distributions, with the newest OpenCV 4, and with the minimum dependency versions (OpenCV 4.10).
 It also runs mypy, checks the generated typing stub, audits the workflows with [zizmor](https://docs.zizmor.sh/)
 and builds the documentation.
 
 ## Generated files
 
-- `cv2u/_cv2_exports.pyi` re-exports OpenCV's names for type checkers. Regenerate it from the **minimum**
-  supported OpenCV version whenever that version changes:
+- `cv2u/_cv2_exports.pyi` re-exports OpenCV's names for type checkers. It is generated from the first OpenCV 5
+  release; names it does not list (newer, or only in OpenCV 4) are typed as `Any`. CI checks that it is up to date:
 
   ```bash
   pip install "opencv-python==5.0.0.93"

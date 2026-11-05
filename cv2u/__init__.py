@@ -9,20 +9,16 @@ Every attribute that ``cv2u`` does not define itself is looked up on the
 ``cv2`` module, so ``cv.imread``, ``cv.COLOR_BGR2GRAY``, ``cv.dnn`` and so on
 all work as usual, alongside the extensions provided by this package.
 
-Requires OpenCV 5.
+Requires OpenCV 4.10 or newer (including OpenCV 5), from any of the OpenCV
+distributions: ``opencv-python``, ``opencv-python-headless``,
+``opencv-contrib-python`` or ``opencv-contrib-python-headless``.
 """
 
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
 
-import cv2 as _cv2
-
-if int(_cv2.__version__.split(".")[0]) < 5:
-    # Another distribution (e.g. opencv-contrib-python 4.x) may provide ``cv2`` alongside ours.
-    raise ImportError(
-        f"cv2u requires OpenCV 5 or newer, but cv2 {_cv2.__version__} is installed "
-        f"({_cv2.__file__}). Upgrade it with: pip install -U 'opencv-python>=5'"
-    )
+# Imported first: fails with install instructions when OpenCV is missing or too old.
+from ._opencv import cv2 as _cv2
 
 if TYPE_CHECKING:
     # Lets type checkers and IDEs see OpenCV's own signatures (``cv.imread`` etc.).

@@ -6,9 +6,9 @@ so ``from cv2 import *`` does not help either. This script lists every public na
 OpenCV stub and re-exports it explicitly, so ``import cv2u as cv; cv.imread`` keeps the
 OpenCV signature in IDEs and type checkers.
 
-Generate it from the *minimum* supported OpenCV version, so every listed name exists for
-all supported versions. Names added in later releases still resolve through ``__getattr__``
-(typed as ``Any``).
+It is generated from the first OpenCV 5 release. Names that are not listed (added in later
+releases, or only present in OpenCV 4, which cv2u also supports) still resolve at runtime
+through ``__getattr__`` and are typed as ``Any``.
 
 Usage::
 

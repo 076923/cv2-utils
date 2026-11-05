@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
-      - run: pip install ".[cluster]" --group typing
+      - run: pip install ".[opencv,cluster]" --group typing
       - run: mypy
       # Check what users see: pyright applies its public-API rules (reportPrivateImportUsage) only to
       # installed packages, so run it on the installed wheel from outside the checkout.
@@ -49,7 +49,7 @@ jobs:
           cp -r tests/typing "$RUNNER_TEMP/typing"
           cd "$RUNNER_TEMP"
           pyright typing
-      # The re-export stub must be generated from the minimum supported OpenCV version.
+      # The re-export stub is generated from the first OpenCV 5 release; other names are typed as Any.
       - name: Check cv2u/_cv2_exports.pyi is up to date
         run: |
           pip install "opencv-python==5.0.0.93"
@@ -108,17 +108,27 @@ jobs:
         # An explicit variant axis: without it, an `include` entry with the same os and python-version is merged into
         # the existing job (and two such entries overwrite each other) instead of adding a new job.
         variant: [standard]
+        # `extras` defaults to opencv,cluster; `pin` installs exact versions before the wheel.
         include:
           - { os: windows-latest, python-version: "3.15", variant: standard }
           - { os: macos-latest, python-version: "3.15", variant: standard }
           - { os: ubuntu-latest, python-version: "3.14", variant: coverage }
           # Without the [cluster] extra: DBSCAN must fail with a helpful ImportError.
-          - { os: ubuntu-latest, python-version: "3.14", variant: no-extras }
+          - { os: ubuntu-latest, python-version: "3.14", variant: no-cluster, extras: opencv }
+          # The other OpenCV distributions.
+          - { os: ubuntu-latest, python-version: "3.13", variant: headless, extras: "headless,cluster" }
+          - { os: ubuntu-latest, python-version: "3.12", variant: contrib, extras: "contrib-headless,cluster" }
+          # The newest OpenCV 4.
+          - { os: ubuntu-latest, python-version: "3.13", variant: opencv4, pin: "opencv-python<5" }
           # Oldest supported dependency versions.
-          - { os: ubuntu-latest, python-version: "3.11", variant: lowest }
+          - os: ubuntu-latest
+            python-version: "3.11"
+            variant: lowest
+            extras: "headless,cluster"
+            pin: "opencv-python-headless==4.10.0.84 numpy==2.0.* pillow==10.1.* scikit-learn==1.4.2"
           # Next Python (pre-release), core features only: scipy (via the [cluster] extra) cannot be built from
           # source on the runner, and NumPy/Pillow may have no wheels yet, so they are built. Failures do not block.
-          - { os: ubuntu-latest, python-version: "3.16", variant: no-extras, experimental: true }
+          - { os: ubuntu-latest, python-version: "3.16", variant: no-cluster, extras: opencv, experimental: true }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -134,18 +144,21 @@ jobs:
       - name: Install build dependencies (pre-release Python)
         if: matrix.experimental
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjpeg-dev zlib1g-dev libfreetype-dev
-      - name: Pin lowest dependencies
-        if: matrix.variant == 'lowest'
-        run: pip install "numpy==2.0.*" "opencv-python==5.0.0.93" "pillow==10.1.*" "scikit-learn==1.4.2"
+      - name: Pin dependency versions
+        if: matrix.pin
+        env:
+          PIN: ${{ matrix.pin }}
+        run: pip install $PIN # word splitting intended: one requirement per word
       - name: Install wheel
         shell: bash
         env:
-          EXTRAS: ${{ matrix.variant == 'no-extras' && 'none' || 'cluster' }}
+          EXTRAS: ${{ matrix.extras || 'opencv,cluster' }}
         run: |
           wheel=$(ls dist/*.whl)
-          if [ "$EXTRAS" = none ]; then pip install "$wheel"; else pip install "${wheel}[${EXTRAS}]"; fi
+          pip install "${wheel}[${EXTRAS}]"
           pip install "pytest>=8" "pytest-cov>=6"
           pip check
+          python -c "import cv2; print('OpenCV', cv2.__version__)"
       - name: Test
         if: matrix.variant != 'coverage'
         run: pytest
