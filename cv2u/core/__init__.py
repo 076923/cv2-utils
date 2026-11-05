@@ -1,3 +1,4 @@
+from .boxes import boxIoU
 from .cluster import DBSCAN, clusterPoints, colorQuantize, dominantColors, drawDBSCAN, kmeansColors, meanShiftColors
 from .compose import hconcatEx, montage, overlayImage, vconcatEx
 from .extension import DHEdge, cartesianToPolar, centerPoint, gammaCorrection, isInside, polarToCartesian
@@ -10,6 +11,7 @@ from .rotate import rotateEx
 __all__ = [
     "DBSCAN",
     "DHEdge",
+    "boxIoU",
     "cartesianToPolar",
     "centerPoint",
     "clusterPoints",

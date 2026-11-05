@@ -15,21 +15,28 @@ dst = cv.rotateEx(src, 45)  # cv2u extension
 
 ## Installation
 
+Choose the OpenCV distribution with an extra:
+
 ```bash
-pip install python-opencv-utils
-pip install "python-opencv-utils[cluster]"  # also installs scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
+pip install "python-opencv-utils[opencv]"            # opencv-python
+pip install "python-opencv-utils[headless]"          # opencv-python-headless (servers, Docker; no GUI)
+pip install "python-opencv-utils[contrib]"           # opencv-contrib-python
+pip install "python-opencv-utils[contrib-headless]"  # opencv-contrib-python-headless
+pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
 ```
+
+If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
 
 | | |
 |---|---|
 | Python | 3.11 – 3.15 |
-| OpenCV | 5.0+ |
+| OpenCV | 4.10+ and 5.x, any distribution (normal, headless, contrib) |
 | NumPy | 2.0+ |
 
 !!! note "One OpenCV distribution per environment"
-    This package depends on `opencv-python`. `opencv-contrib-python`, `opencv-python-headless` and the other
-    OpenCV distributions all provide the same `cv2` module, so install only one of them.
-    It must be OpenCV 5 or newer: `import cv2u` raises `ImportError` if an older `cv2` is found.
+    All OpenCV distributions provide the same `cv2` module and conflict with each other, so install only one of them.
+    `import cv2u` raises an `ImportError` with these instructions if no `cv2` (or one older than 4.10) is found.
+    On a headless build, `imshowEx` fails just like `cv.imshow`; everything else works.
 
 ## How it works
 

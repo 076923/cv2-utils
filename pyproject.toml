@@ -16,6 +16,9 @@ keywords = [
     "opencv",
     "opencv-python",
     "opencv5",
+    "opencv4",
+    "opencv-python-headless",
+    "headless",
     "cv2",
     "cv",
     "computer-vision",
@@ -118,13 +121,18 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
+# OpenCV itself is chosen with an extra, because its four distributions all provide the same `cv2` module and must
+# not be installed together. 4.10.0.84 is the first OpenCV build for NumPy 2.
 dependencies = [
     "numpy>=2.0",
-    "opencv-python>=5.0",
     "pillow>=10.1",
 ]
 
 [project.optional-dependencies]
+opencv = ["opencv-python>=4.10.0.84"]
+headless = ["opencv-python-headless>=4.10.0.84"]
+contrib = ["opencv-contrib-python>=4.10.0.84"]
+contrib-headless = ["opencv-contrib-python-headless>=4.10.0.84"]
 # Needed only for meanShiftColors, DBSCAN and clusterPoints.
 cluster = ["scikit-learn>=1.4.2"]
 

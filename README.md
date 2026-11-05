@@ -28,26 +28,31 @@ import cv2u as cv  # instead of: import cv2 as cv
 | PyPI package | `python-opencv-utils` |
 | Import name | `cv2u` |
 | Python | 3.11 – 3.15 |
-| OpenCV | 5.0+ (OpenCV 4 is not supported) |
+| OpenCV | 4.10+ and 5.x, any distribution (normal, headless, contrib) |
 | NumPy | 2.0+ |
 | Documentation | <https://076923.github.io/cv2-utils/> |
 
 ## Installation
 
+Choose the OpenCV distribution with an extra:
+
 ```bash
-pip install python-opencv-utils
-pip install "python-opencv-utils[cluster]"  # also installs scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
+pip install "python-opencv-utils[opencv]"            # opencv-python
+pip install "python-opencv-utils[headless]"          # opencv-python-headless (servers, Docker; no GUI)
+pip install "python-opencv-utils[contrib]"           # opencv-contrib-python
+pip install "python-opencv-utils[contrib-headless]"  # opencv-contrib-python-headless
+pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
 ```
 
-Dependencies (installed automatically): `opencv-python>=5`, `numpy>=2`, `pillow`.
+If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
+Dependencies: OpenCV 4.10 or newer (including OpenCV 5), `numpy>=2`, `pillow`.
 The optional `cluster` extra adds `scikit-learn` for `meanShiftColors`, `DBSCAN` and `clusterPoints`.
 `dominantColors`, `colorQuantize` and `kmeansColors` work without it (they use `cv.kmeans`).
 
 > [!NOTE]
-> This package depends on `opencv-python`. If you use a different OpenCV build
-> (`opencv-contrib-python`, `opencv-python-headless`, ...), install only one OpenCV
-> distribution in the environment, because they all provide the same `cv2` module and conflict with each other.
-> It must be OpenCV 5 or newer: `import cv2u` raises `ImportError` if an older `cv2` is found.
+> All OpenCV distributions provide the same `cv2` module and conflict with each other, so install only one of them.
+> `import cv2u` raises an `ImportError` with these instructions if no `cv2` (or one older than 4.10) is found.
+> On a headless build, `imshowEx` fails just like `cv.imshow`; everything else works.
 
 ## Usage
 
@@ -66,7 +71,7 @@ If a name exists in both, the `cv2u` version wins. You can always reach the orig
 `cv` is only a name, so `import cv2u as cv2` also works if you prefer it.
 
 Type checkers and IDEs see OpenCV's own signatures through `cv2u`, so autocompletion and type checking for
-`cv.imread` and friends keep working. Names added in OpenCV releases newer than 5.0 are typed as `Any`.
+`cv.imread` and friends keep working. Names the OpenCV 5.0 stubs do not have (added later, or only in OpenCV 4) are typed as `Any`.
 
 ### Everyday helpers
 
@@ -256,6 +261,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `overlayImage(src, overlay, org=(0, 0), opacity=1.0)` | Alpha-blend a (transparent) image onto another, clipped at the borders. |
 | `montage(images, cols=None, gap=0, color=0, cellSize=None)` | Arrange images in a grid. |
 | `cropEx(src, rect, margin=0, fill=None)` | Crop safely when the box extends outside the image (clip, or pad with `fill`). |
+| `boxIoU(boxesA, boxesB)` | IoU of every pair of boxes `(x, y, w, h)`, as an `(N, M)` array. |
 | `inRangeEx(src, lowerb, upperb)` | `cv.inRange` for HSV hue ranges that wrap around, such as red (170 to 10). |
 | `cropToContent(src, background=None, tolerance=0, margin=0)` | Trim a uniform border (scan margins, black bars). |
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
@@ -267,6 +273,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 |---|---|
 | `imreadEx(filename, flags=cv.IMREAD_COLOR)` | `cv.imread` that also works with non-ASCII (e.g. Korean) paths on Windows. |
 | `imwriteEx(filename, img, params=(), makeDirs=False)` | `cv.imwrite` that also works with non-ASCII paths on Windows, and can create missing folders. |
+| `listImages(path, recursive=False)` | The image files in a folder, in natural order (`img2` before `img10`). |
 | `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
 | `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order (also palette, CMYK and transparent images). |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
@@ -279,12 +286,20 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `adjustHSV(src, hue=0, saturation=1.0, value=1.0)` | Rotate the hue (degrees) and scale saturation/brightness. |
 | `autoContrast(src, clip=0.01)`, `whiteBalance(src)` | Auto levels that ignore outliers; remove a color cast. |
 | `sharpnessScore(src)`, `ssim(a, b)`, `diffMask(a, b, threshold=25)` | Blur detection, structural similarity, changed pixels. |
+| `imageHash(src, hashSize=8, method="difference")`, `hashDistance(a, b)` | Perceptual hashes (dHash, aHash, pHash) for finding near-duplicate images. |
+| `matchHistograms(src, reference)`, `colorTransfer(src, reference)` | Give an image the tones or the color mood of another one. |
 | `translate(src, dx, dy)` | Shift an image, keeping its size. |
+| `transformPoints(points, M)` | Map points through a 2x3 affine or 3x3 perspective matrix, in any point layout. |
+| `cropRotatedRect(src, rect)` | Cut out a rotated box from `cv.minAreaRect` as an upright image. |
+| `deskew(src, maxAngle=45.0)` | Straighten a tilted page from its text lines. Returns `(dst, angle)`. |
+| `pixelate(src, blockSize=16, rect=None)` | Mosaic the image or one box, e.g. to anonymize faces. |
 | `drawDashedLine(img, pt1, pt2, color)`, `drawDashedRectangle(img, rect, color)` | Dashed lines and boxes, in place. |
+| `drawRoundedRectangle(img, rect, color, thickness=1, lineType=cv.LINE_8, radius=8)` | A box with rounded corners, in place. |
 | `drawHistogram(src, size=(512, 200))` | Plot the histogram as an image. |
 | `largestComponent(mask)`, `skeletonize(mask)`, `cutout(src, mask, feather=0)` | Keep the main object, thin to 1-pixel lines, cut out with transparency. |
 | `hexToBGR("#ff8800")`, `bgrToHex(color)` | Convert between hex colors and BGR tuples. |
 | `toGray(src)`, `toBGR(src)`, `toBGRA(src, alpha=None)` | Convert from any channel count; no error when the image is already in that format. |
+| `flattenAlpha(src, background=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
 | `findContoursEx(image, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE, minArea=0, sort=True)` | `cv.findContours` for any image, largest first, small ones dropped. |
 | `fillHoles(mask, maxHoleArea=None)`, `removeSmallObjects(mask, minArea)` | Mask clean-up. |
 | `findTemplate(src, templ, threshold=0.8, maxCount=None)` | `cv.matchTemplate` as a list of non-overlapping matches `(x, y, w, h, score)`. |

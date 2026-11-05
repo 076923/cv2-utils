@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-__all__ = ["adjustBrightnessContrast", "adjustHSV", "autoContrast", "whiteBalance"]
+__all__ = ["adjustBrightnessContrast", "adjustHSV", "autoContrast", "colorTransfer", "matchHistograms", "whiteBalance"]
 
 
 def _split_alpha(src: np.ndarray, name: str = "src") -> tuple[np.ndarray, np.ndarray | None]:
@@ -137,3 +137,63 @@ def whiteBalance(src: np.ndarray, method: str = "whitePatch") -> np.ndarray:
         raise ValueError(f"method must be 'whitePatch' or 'grayWorld', got {method!r}")
     balanced = np.clip(np.rint(color.astype(np.float64) * gains), 0, 255).astype(np.uint8)
     return _join_alpha(balanced, alpha)
+
+
+def _match_channel(src: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    src_cdf = np.cumsum(np.bincount(src.ravel(), minlength=256)) / src.size
+    ref_cdf = np.cumsum(np.bincount(ref.ravel(), minlength=256)) / ref.size
+    return np.minimum(np.searchsorted(ref_cdf, src_cdf - 1e-12), 255).astype(np.float64)
+
+
+def matchHistograms(src: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Remap the tones of ``src`` so that its histogram matches the one of ``reference``, channel by channel.
+
+    Useful to make photos from different cameras or lighting look alike before comparing them.
+    OpenCV has no histogram specification; ``cv.equalizeHist`` only matches a flat histogram.
+
+    Args:
+        src: 8-bit image to adjust (grayscale, BGR or BGRA; the alpha channel is kept).
+        reference: 8-bit image with the target look, of any size, with the same number of color channels.
+
+    Returns:
+        The adjusted image.
+
+    Raises:
+        ValueError: If the images are not 8-bit or their color channels differ.
+    """
+    color, alpha = _split_alpha(src)
+    ref, _ = _split_alpha(reference, "reference")
+    if color.ndim != ref.ndim or color.shape[2:] != ref.shape[2:]:
+        raise ValueError(f"src and reference must have the same color channels, got {src.shape} and {reference.shape}")
+    if color.ndim == 2:
+        return _lut(color, _match_channel(color, ref))
+    channels = [_lut(color[..., c], _match_channel(color[..., c], ref[..., c])) for c in range(color.shape[2])]
+    return _join_alpha(np.dstack(channels), alpha)
+
+
+def colorTransfer(src: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Give ``src`` the color mood of ``reference`` (Reinhard et al. 2001 color transfer in Lab space).
+
+    The mean and spread of each Lab channel are matched, which carries over the overall tint, brightness and
+    colorfulness while keeping the content. Gentler than ``matchHistograms``, which matches the full distribution.
+
+    Args:
+        src: 8-bit BGR or BGRA image to recolor (the alpha channel is kept).
+        reference: 8-bit BGR or BGRA image with the target colors, of any size.
+
+    Returns:
+        The recolored image.
+
+    Raises:
+        ValueError: If an image is not 8-bit BGR or BGRA.
+    """
+    color, alpha = _split_alpha(src)
+    ref, _ = _split_alpha(reference, "reference")
+    if color.ndim != 3 or ref.ndim != 3 or color.shape[2] != 3 or ref.shape[2] != 3:
+        raise ValueError(f"src and reference must be BGR or BGRA images, got {src.shape} and {reference.shape}")
+    lab = cv2.cvtColor(color.astype(np.float32) / 255, cv2.COLOR_BGR2Lab).reshape(-1, 3)
+    ref_lab = cv2.cvtColor(ref.astype(np.float32) / 255, cv2.COLOR_BGR2Lab).reshape(-1, 3)
+    gain = ref_lab.std(axis=0) / np.maximum(lab.std(axis=0), 1e-6)
+    out = (lab - lab.mean(axis=0)) * gain + ref_lab.mean(axis=0)
+    bgr = cv2.cvtColor(out.reshape(color.shape).astype(np.float32), cv2.COLOR_Lab2BGR)
+    return _join_alpha(np.clip(np.rint(bgr * 255), 0, 255).astype(np.uint8), alpha)

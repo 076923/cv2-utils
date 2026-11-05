@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-__all__ = ["equalizeHistEx", "unsharpMask"]
+__all__ = ["equalizeHistEx", "pixelate", "unsharpMask"]
 
 
 def equalizeHistEx(
@@ -75,3 +75,36 @@ def unsharpMask(src: np.ndarray, sigma: float = 1.0, amount: float = 1.0, thresh
         low_contrast = cv2.absdiff(src, blurred) < threshold
         sharpened[low_contrast] = src[low_contrast]
     return sharpened
+
+
+def pixelate(src: np.ndarray, blockSize: int = 16, rect: tuple[int, int, int, int] | None = None) -> np.ndarray:
+    """Mosaic the image, or only the box ``rect``, e.g. to anonymize faces or license plates.
+
+    Each ``blockSize`` x ``blockSize`` block is replaced by its average color.
+
+    Args:
+        src: Image to pixelate.
+        blockSize: Size of the blocks in pixels.
+        rect: Box ``(x, y, width, height)`` to pixelate, e.g. from a detector; it may extend outside the image.
+            By default the whole image.
+
+    Returns:
+        A new image; the area outside ``rect`` is unchanged.
+
+    Raises:
+        ValueError: If ``blockSize`` is not positive.
+    """
+    if blockSize < 1:
+        raise ValueError(f"blockSize must be positive, got {blockSize}")
+    dst = src.copy()
+    height, width = src.shape[:2]
+    x, y, w, h = (0, 0, width, height) if rect is None else (int(v) for v in rect)
+    x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + w, width), min(y + h, height)
+    if x1 <= x0 or y1 <= y0:
+        return dst
+    roi = dst[y0:y1, x0:x1]
+    rh, rw = roi.shape[:2]
+    small = cv2.resize(roi, (-(-rw // blockSize), -(-rh // blockSize)), interpolation=cv2.INTER_AREA)
+    blocks = np.repeat(np.repeat(small, blockSize, axis=0), blockSize, axis=1)[:rh, :rw]
+    roi[...] = blocks.reshape(roi.shape)
+    return dst

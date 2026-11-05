@@ -45,6 +45,14 @@ Never re-implement something OpenCV already does well.
 | `translate`, `padToMultiple`, `padToSize`, `splitTiles`, `mergeTiles` | Shifting, padding and tiling all need `warpAffine`/`copyMakeBorder` arithmetic. |
 | `drawDashedLine`, `drawDashedRectangle`, `drawHistogram` | OpenCV draws only solid lines, and `cv.calcHist` only returns numbers. |
 | `largestComponent`, `cutout` | Keeping the main object and cutting it out with transparency take component and alpha bookkeeping. |
+| `transformPoints` | `cv.transform` and `cv.perspectiveTransform` need `(N, 1, 2)` float arrays and a different function per matrix type. |
+| `cropRotatedRect`, `deskew` | OpenCV describes rotated boxes (`cv.minAreaRect`) but cannot extract one, and has no skew estimation for pages. |
+| `flattenAlpha` | `cv.COLOR_BGRA2BGR` drops the alpha channel, so transparent areas turn into hidden colors (often black). |
+| `matchHistograms`, `colorTransfer` | `cv.equalizeHist` only targets a flat histogram; matching another image's tones or colors is manual. |
+| `imageHash`, `hashDistance` | The `img_hash` module is in contrib, which `opencv-python` does not include. |
+| `boxIoU` | Box overlap is computed only inside `cv.dnn.NMSBoxes`; matching and tracking code rewrites it. |
+| `pixelate`, `drawRoundedRectangle` | Mosaic anonymization and rounded boxes take resize and arc arithmetic. |
+| `listImages` | Collecting the image files of a folder (in natural order) is glob and sort boilerplate. |
 | `readFrameAt` | Reading one frame means open, seek, read and release. |
 | `putTextEx` | `cv.putText` only has the Hershey fonts, which cover ASCII only. |
 | `urlread` | `cv.imread` cannot read from a URL. |
@@ -81,7 +89,8 @@ cv2u adds names, it never replaces them. No extension may have the same name as 
 
 ## 4. Stay light
 
-The core depends only on `opencv-python`, `numpy` and `pillow`. Heavier dependencies are optional extras that are
+The core depends only on OpenCV (any distribution, chosen with an extra: `[opencv]`, `[headless]`, `[contrib]` or
+`[contrib-headless]`), `numpy` and `pillow`. Heavier dependencies are optional extras that are
 imported lazily, with an `ImportError` that says how to install them (`pip install "python-opencv-utils[cluster]"`).
 Environment-specific packages are never required: `imshowInline` uses IPython only when it is called in a notebook.
 Where OpenCV can do the job, it is used instead of an extra: `kmeansColors` is built on `cv.kmeans`, so palettes and

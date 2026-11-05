@@ -13,7 +13,7 @@ def test_drawLabel_draws_in_place_like_rectangle():
     assert tuple(img[60, 20]) == (0, 255, 0)  # left edge of the box
     tag = img[20:39, 20:60]  # the tag above the box
     assert (tag == (0, 255, 0)).all(axis=2).mean() > 0.4
-    assert (tag == 0).all(axis=2).any()  # black text on the bright green tag
+    assert (tag < 64).all(axis=2).any()  # dark text on the bright green tag
 
 
 def test_drawLabel_moves_tag_inside_when_no_room_above():

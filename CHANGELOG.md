@@ -4,6 +4,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-06
+
+### Changed
+
+- **OpenCV 4.10 and newer are supported again, alongside OpenCV 5.** 4.10.0.84 is the first OpenCV build for NumPy 2.
+- **The OpenCV distribution is chosen with an extra**: `[opencv]` (`opencv-python`), `[headless]`
+  (`opencv-python-headless`), `[contrib]` or `[contrib-headless]`. `opencv-python` is no longer a hard dependency,
+  so cv2u no longer installs a second, conflicting `cv2` next to a headless or contrib build. Without an extra, an
+  already installed OpenCV is used; `import cv2u` explains how to install one if there is none.
+  Upgrade with `pip install -U "python-opencv-utils[opencv]"` to keep the 0.1.0 behavior.
+
+### Added
+
+- `imgproc`
+  - `transformPoints`: map points through a 2x3 affine or 3x3 perspective matrix, whatever their layout.
+  - `cropRotatedRect`: cut out a rotated box (`cv.minAreaRect`) as an upright image.
+  - `deskew`: straighten a tilted page; the angle is found from the text lines.
+  - `flattenAlpha`: composite a transparent image onto a background color or image.
+  - `matchHistograms`, `colorTransfer`: give an image the tones (histogram) or the color mood (Lab statistics)
+    of another one.
+  - `imageHash`, `hashDistance`: perceptual hashes (dHash, aHash, pHash) for near-duplicate detection.
+  - `pixelate`: mosaic the whole image or one box.
+  - `drawRoundedRectangle`: rectangles with rounded corners, outlined or filled.
+- `core`
+  - `boxIoU`: intersection over union of every pair of boxes.
+- `imgcodecs`
+  - `listImages`: the image files of a folder in natural order, optionally recursive.
+
 ## [0.1.0] - 2026-11-05
 
 First official release.
@@ -94,4 +122,5 @@ First official release.
 - Releases are published from GitHub Actions with PyPI trusted publishing and digital attestations.
 - `SECURITY.md`, `CODE_OF_CONDUCT.md` and `CITATION.cff`.
 
+[0.2.0]: https://github.com/076923/cv2-utils/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/076923/cv2-utils/releases/tag/v0.1.0

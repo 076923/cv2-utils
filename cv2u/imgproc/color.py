@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-__all__ = ["bgrToHex", "hexToBGR", "toBGR", "toBGRA", "toGray"]
+__all__ = ["bgrToHex", "flattenAlpha", "hexToBGR", "toBGR", "toBGRA", "toGray"]
 
 
 def _channels(src: np.ndarray) -> int:
@@ -104,3 +104,37 @@ def bgrToHex(color: Sequence[float]) -> str:
         raise ValueError(f"color must have 3 or 4 values in [0, 255], got {color!r}")
     b, g, r = values[:3]
     return f"#{r:02x}{g:02x}{b:02x}" + (f"{values[3]:02x}" if len(values) == 4 else "")
+
+
+def flattenAlpha(src: np.ndarray, background: float | Sequence[float] | np.ndarray = (255, 255, 255)) -> np.ndarray:
+    """Composite a transparent (BGRA) image onto a background and return 3-channel BGR.
+
+    ``cv.cvtColor(img, cv.COLOR_BGRA2BGR)`` just drops the alpha channel, so transparent areas show whatever color
+    the hidden pixels happen to have (often black). Use this before saving as JPEG or passing to code that expects BGR.
+
+    Args:
+        src: Image to flatten. Images without an alpha channel are converted with ``toBGR``.
+        background: Background color (white by default), or a background image of the same height and width.
+
+    Returns:
+        A BGR image with the dtype of ``src``.
+
+    Raises:
+        ValueError: If ``src`` does not have 1, 3 or 4 channels, or a background image has a different size.
+    """
+    if _channels(src) != 4:
+        return toBGR(src)
+    peak = float(np.iinfo(src.dtype).max) if np.issubdtype(src.dtype, np.integer) else 1.0
+    alpha = src[..., 3:4].astype(np.float32) / peak
+    if isinstance(background, np.ndarray) and background.ndim >= 2:
+        if background.shape[:2] != src.shape[:2]:
+            raise ValueError(f"background image must be {src.shape[1]}x{src.shape[0]}, got shape {background.shape}")
+        bg = toBGR(background).astype(np.float32)
+    else:
+        values = np.atleast_1d(np.asarray(background, dtype=np.float32)).ravel()
+        bg = np.resize(values, 3) if values.size < 3 else values[:3]
+    out = src[..., :3].astype(np.float32) * alpha + bg * (1 - alpha)
+    if np.issubdtype(src.dtype, np.integer):
+        out = np.clip(np.rint(out), 0, peak)
+    flat: np.ndarray = out.astype(src.dtype)
+    return flat
