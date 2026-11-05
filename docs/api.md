@@ -47,6 +47,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.roi.inRangeEx
 
+::: cv2u.core.boxes.boxIoU
+
 ### Combining images
 
 ::: cv2u.core.compose.hconcatEx
@@ -91,6 +93,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgcodecs.files.imwriteEx
 
+::: cv2u.imgcodecs.files.listImages
+
 ::: cv2u.imgcodecs.urlread.urlread
 
 ::: cv2u.imgcodecs.convert.toPillow
@@ -111,6 +115,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.color.toBGRA
 
+::: cv2u.imgproc.color.flattenAlpha
+
 ::: cv2u.imgproc.color.hexToBGR
 
 ::: cv2u.imgproc.color.bgrToHex
@@ -125,6 +131,10 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.adjust.whiteBalance
 
+::: cv2u.imgproc.adjust.matchHistograms
+
+::: cv2u.imgproc.adjust.colorTransfer
+
 ### Quality and comparison
 
 ::: cv2u.imgproc.quality.sharpnessScore
@@ -132,6 +142,10 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgproc.quality.ssim
 
 ::: cv2u.imgproc.quality.diffMask
+
+::: cv2u.imgproc.quality.imageHash
+
+::: cv2u.imgproc.quality.hashDistance
 
 ### Masks and contours
 
@@ -161,11 +175,19 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.geometry.translate
 
+::: cv2u.imgproc.geometry.transformPoints
+
+::: cv2u.imgproc.geometry.cropRotatedRect
+
+::: cv2u.imgproc.geometry.deskew
+
 ::: cv2u.imgproc.edges.autoCanny
 
 ::: cv2u.imgproc.enhance.equalizeHistEx
 
 ::: cv2u.imgproc.enhance.unsharpMask
+
+::: cv2u.imgproc.enhance.pixelate
 
 ### Drawing
 
@@ -176,6 +198,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgproc.draw.drawDashedLine
 
 ::: cv2u.imgproc.draw.drawDashedRectangle
+
+::: cv2u.imgproc.draw.drawRoundedRectangle
 
 ::: cv2u.imgproc.draw.drawHistogram
 

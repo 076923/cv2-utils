@@ -256,6 +256,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `overlayImage(src, overlay, org=(0, 0), opacity=1.0)` | Alpha-blend a (transparent) image onto another, clipped at the borders. |
 | `montage(images, cols=None, gap=0, color=0, cellSize=None)` | Arrange images in a grid. |
 | `cropEx(src, rect, margin=0, fill=None)` | Crop safely when the box extends outside the image (clip, or pad with `fill`). |
+| `boxIoU(boxesA, boxesB)` | IoU of every pair of boxes `(x, y, w, h)`, as an `(N, M)` array. |
 | `inRangeEx(src, lowerb, upperb)` | `cv.inRange` for HSV hue ranges that wrap around, such as red (170 to 10). |
 | `cropToContent(src, background=None, tolerance=0, margin=0)` | Trim a uniform border (scan margins, black bars). |
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
@@ -267,6 +268,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 |---|---|
 | `imreadEx(filename, flags=cv.IMREAD_COLOR)` | `cv.imread` that also works with non-ASCII (e.g. Korean) paths on Windows. |
 | `imwriteEx(filename, img, params=(), makeDirs=False)` | `cv.imwrite` that also works with non-ASCII paths on Windows, and can create missing folders. |
+| `listImages(path, recursive=False)` | The image files in a folder, in natural order (`img2` before `img10`). |
 | `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
 | `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order (also palette, CMYK and transparent images). |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
@@ -279,12 +281,20 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `adjustHSV(src, hue=0, saturation=1.0, value=1.0)` | Rotate the hue (degrees) and scale saturation/brightness. |
 | `autoContrast(src, clip=0.01)`, `whiteBalance(src)` | Auto levels that ignore outliers; remove a color cast. |
 | `sharpnessScore(src)`, `ssim(a, b)`, `diffMask(a, b, threshold=25)` | Blur detection, structural similarity, changed pixels. |
+| `imageHash(src, hashSize=8, method="difference")`, `hashDistance(a, b)` | Perceptual hashes (dHash, aHash, pHash) for finding near-duplicate images. |
+| `matchHistograms(src, reference)`, `colorTransfer(src, reference)` | Give an image the tones or the color mood of another one. |
 | `translate(src, dx, dy)` | Shift an image, keeping its size. |
+| `transformPoints(points, M)` | Map points through a 2x3 affine or 3x3 perspective matrix, in any point layout. |
+| `cropRotatedRect(src, rect)` | Cut out a rotated box from `cv.minAreaRect` as an upright image. |
+| `deskew(src, maxAngle=45.0)` | Straighten a tilted page from its text lines. Returns `(dst, angle)`. |
+| `pixelate(src, blockSize=16, rect=None)` | Mosaic the image or one box, e.g. to anonymize faces. |
 | `drawDashedLine(img, pt1, pt2, color)`, `drawDashedRectangle(img, rect, color)` | Dashed lines and boxes, in place. |
+| `drawRoundedRectangle(img, rect, color, thickness=1, lineType=cv.LINE_8, radius=8)` | A box with rounded corners, in place. |
 | `drawHistogram(src, size=(512, 200))` | Plot the histogram as an image. |
 | `largestComponent(mask)`, `skeletonize(mask)`, `cutout(src, mask, feather=0)` | Keep the main object, thin to 1-pixel lines, cut out with transparency. |
 | `hexToBGR("#ff8800")`, `bgrToHex(color)` | Convert between hex colors and BGR tuples. |
 | `toGray(src)`, `toBGR(src)`, `toBGRA(src, alpha=None)` | Convert from any channel count; no error when the image is already in that format. |
+| `flattenAlpha(src, background=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
 | `findContoursEx(image, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE, minArea=0, sort=True)` | `cv.findContours` for any image, largest first, small ones dropped. |
 | `fillHoles(mask, maxHoleArea=None)`, `removeSmallObjects(mask, minArea)` | Mask clean-up. |
 | `findTemplate(src, templ, threshold=0.8, maxCount=None)` | `cv.matchTemplate` as a list of non-overlapping matches `(x, y, w, h, score)`. |

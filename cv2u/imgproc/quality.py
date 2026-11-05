@@ -5,7 +5,7 @@ import numpy as np
 
 from .color import toGray
 
-__all__ = ["diffMask", "sharpnessScore", "ssim"]
+__all__ = ["diffMask", "hashDistance", "imageHash", "sharpnessScore", "ssim"]
 
 
 def sharpnessScore(src: np.ndarray) -> float:
@@ -84,3 +84,53 @@ def diffMask(a: np.ndarray, b: np.ndarray, threshold: float = 25, minArea: int =
 
         mask = removeSmallObjects(mask, minArea)
     return mask
+
+
+def imageHash(src: np.ndarray, hashSize: int = 8, method: str = "difference") -> int:
+    """Perceptual hash of an image, for finding duplicates and near-duplicates.
+
+    Similar images (resized, recompressed, slightly edited) get hashes that differ in only a few bits; compare them
+    with ``hashDistance``. OpenCV's ``img_hash`` module is in contrib, which ``opencv-python`` does not include.
+
+    Args:
+        src: Image to hash (grayscale, BGR or BGRA).
+        hashSize: The hash has ``hashSize * hashSize`` bits (64 by default).
+        method: ``"difference"`` (dHash: brightness gradients, the default), ``"average"`` (aHash: brighter
+            than the mean) or ``"perceptual"`` (pHash: low DCT frequencies, the most robust to edits).
+
+    Returns:
+        The hash as a non-negative integer (e.g. ``format(h, "016x")`` for a 64-bit hex string).
+
+    Raises:
+        ValueError: If ``hashSize`` is below 2 or ``method`` is unknown.
+    """
+    if hashSize < 2:
+        raise ValueError(f"hashSize must be at least 2, got {hashSize}")
+    gray = toGray(src).astype(np.float32)
+    if method == "difference":
+        small = cv2.resize(gray, (hashSize + 1, hashSize), interpolation=cv2.INTER_AREA)
+        bits = small[:, 1:] > small[:, :-1]
+    elif method == "average":
+        small = cv2.resize(gray, (hashSize, hashSize), interpolation=cv2.INTER_AREA)
+        bits = small > small.mean()
+    elif method == "perceptual":
+        small = cv2.resize(gray, (4 * hashSize, 4 * hashSize), interpolation=cv2.INTER_AREA)
+        low = cv2.dct(small)[:hashSize, :hashSize]
+        bits = low > np.median(low.ravel()[1:])  # the DC term is the mean brightness, not structure
+    else:
+        raise ValueError(f'method must be "difference", "average" or "perceptual", got {method!r}')
+    return int("".join("1" if b else "0" for b in bits.ravel()), 2)
+
+
+def hashDistance(a: int, b: int) -> int:
+    """Number of differing bits between two ``imageHash`` values (Hamming distance).
+
+    For 64-bit hashes, 0 means identical or nearly so, up to about 10 usually means the same picture, and
+    unrelated images are around 32.
+
+    Raises:
+        ValueError: If a hash is negative.
+    """
+    if a < 0 or b < 0:
+        raise ValueError(f"hashes must be non-negative, got {a} and {b}")
+    return (a ^ b).bit_count()

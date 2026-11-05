@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `imgproc`
+  - `transformPoints`: map points through a 2x3 affine or 3x3 perspective matrix, whatever their layout.
+  - `cropRotatedRect`: cut out a rotated box (`cv.minAreaRect`) as an upright image.
+  - `deskew`: straighten a tilted page; the angle is found from the text lines.
+  - `flattenAlpha`: composite a transparent image onto a background color or image.
+  - `matchHistograms`, `colorTransfer`: give an image the tones (histogram) or the color mood (Lab statistics)
+    of another one.
+  - `imageHash`, `hashDistance`: perceptual hashes (dHash, aHash, pHash) for near-duplicate detection.
+  - `pixelate`: mosaic the whole image or one box.
+  - `drawRoundedRectangle`: rectangles with rounded corners, outlined or filled.
+- `core`
+  - `boxIoU`: intersection over union of every pair of boxes.
+- `imgcodecs`
+  - `listImages`: the image files of a folder in natural order, optionally recursive.
+
 ## [0.1.0] - 2026-11-05
 
 First official release.
@@ -94,4 +113,5 @@ First official release.
 - Releases are published from GitHub Actions with PyPI trusted publishing and digital attestations.
 - `SECURITY.md`, `CODE_OF_CONDUCT.md` and `CITATION.cff`.
 
+[Unreleased]: https://github.com/076923/cv2-utils/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/076923/cv2-utils/releases/tag/v0.1.0

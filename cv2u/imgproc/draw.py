@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 
 from .puttext import _load_font
 
-__all__ = ["drawDashedLine", "drawDashedRectangle", "drawHistogram", "drawLabel", "overlayMask"]
+__all__ = ["drawDashedLine", "drawDashedRectangle", "drawHistogram", "drawLabel", "drawRoundedRectangle", "overlayMask"]
 
 Color = float | Sequence[float]
 
@@ -259,3 +259,53 @@ def drawHistogram(src: np.ndarray, size: tuple[int, int] = (512, 200), log: bool
         points = np.stack([xs, ys], axis=1).round().astype(np.int32).reshape(-1, 1, 2)
         cv2.polylines(plot, [points], False, color, 1, cv2.LINE_AA)
     return plot
+
+
+def drawRoundedRectangle(
+    img: np.ndarray,
+    rect: tuple[int, int, int, int],
+    color: Color,
+    thickness: int = 1,
+    lineType: int = cv2.LINE_8,
+    radius: int = 8,
+) -> np.ndarray:
+    """Draw a rectangle ``(x, y, width, height)`` with rounded corners, in place like ``cv.rectangle``.
+
+    Args:
+        img: Image to draw on.
+        rect: The box, as for ``drawDashedRectangle``.
+        color: Line or fill color.
+        thickness: Line thickness; ``cv.FILLED`` (negative) fills the shape.
+        lineType: As for ``cv.rectangle`` (``cv.LINE_AA`` for smooth corners).
+        radius: Corner radius in pixels, reduced to fit small boxes.
+
+    Returns:
+        ``img``.
+
+    Raises:
+        ValueError: If the box is empty or ``radius`` is negative.
+    """
+    x, y, w, h = (int(v) for v in rect)
+    if w < 1 or h < 1:
+        raise ValueError(f"rect must have a positive size, got {w}x{h}")
+    if radius < 0:
+        raise ValueError(f"radius must not be negative, got {radius}")
+    x1, y1 = x + w - 1, y + h - 1
+    r = min(int(radius), (w - 1) // 2, (h - 1) // 2)
+    corners = (((x + r, y + r), 180), ((x1 - r, y + r), 270), ((x1 - r, y1 - r), 0), ((x + r, y1 - r), 90))
+    if thickness < 0:
+        cv2.rectangle(img, (x + r, y), (x1 - r, y1), color, cv2.FILLED, lineType)
+        cv2.rectangle(img, (x, y + r), (x1, y1 - r), color, cv2.FILLED, lineType)
+        for center, start in corners:
+            cv2.ellipse(img, center, (r, r), 0, start, start + 90, color, cv2.FILLED, lineType)
+        return img
+    for p, q in (
+        ((x + r, y), (x1 - r, y)),
+        ((x1, y + r), (x1, y1 - r)),
+        ((x + r, y1), (x1 - r, y1)),
+        ((x, y + r), (x, y1 - r)),
+    ):
+        cv2.line(img, p, q, color, thickness, lineType)
+    for center, start in corners:
+        cv2.ellipse(img, center, (r, r), 0, start, start + 90, color, thickness, lineType)
+    return img
