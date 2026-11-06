@@ -6,9 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-11-06
 
+32 new APIs (100 -> 132).
+
 ### Added
 
-- Contours (`imgproc`), 11 new APIs (100 -> 111): the steps after `cv.findContours` that every project rewrites.
+- Boxes (`core`): `nms`, `xywhToXyxy`, `xyxyToXywh`, `clipBoxes`, `scaleBoxes` (undo a resize or letterbox) and
+  `expandBoxes`: detector output to clean boxes on the original image.
+- Binarization and morphology (`imgproc`): `binarize` (Otsu, adaptive, triangle or fixed, from any image) and
+  `morphology` (`cv.morphologyEx` by operation name with the kernel built for you).
+- Detection (`imgproc`): `findLines`, `findCircles` and `detectBlobs` with plain `(N, 4)` / `(N, 3)` array results.
+- Features (`imgproc`): `matchFeatures` (detect, describe, match, ratio test) and `alignImages` (plus RANSAC and
+  the warp) for ORB and SIFT.
+- Masks and crops: `maskBoundingRect`, `applyMask`, `centerCrop`.
+- Drawing: `drawBoxes`, `drawPoints`, `drawGrid` and `distinctColors`.
+- Contours (`imgproc`), 11 new APIs: the steps after `cv.findContours` that every project rewrites.
   - `contourStats`: area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent
     diameter and orientation as one `ContourStats` named tuple.
   - `sortContours`: reading order (left-to-right, top-to-bottom, ...) or by area / perimeter.

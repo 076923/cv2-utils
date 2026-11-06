@@ -119,6 +119,24 @@ cv.imwrite("result.png", cv.montage([img, cv.overlayMask(img, red, (255, 0, 255)
 payload = {"image": cv.imencodeBase64(img, ".jpg", dataUri=True)}  # for a JSON API or an HTML <img>
 ```
 
+Raw detector output to clean boxes on the original image:
+
+```python
+import cv2u as cv
+
+img = cv.imread("street.jpg")
+small, scale, offset = cv.letterbox(img, (640, 640))  # what the network saw
+boxes, scores = run_model(small)  # (N, 4) as (x, y, w, h) and (N,)
+keep = cv.nms(boxes, scores, iouThreshold=0.5, scoreThreshold=0.3)
+boxes = cv.scaleBoxes(boxes[keep], scale, offset, inverse=True)  # back to the original image
+boxes = cv.clipBoxes(cv.expandBoxes(boxes, ratio=0.1), (img.shape[1], img.shape[0]))
+cv.drawBoxes(img, boxes, labels=[f"{s:.2f}" for s in scores[keep]])  # one color per box
+
+mask = cv.morphology(cv.binarize(img, "adaptive", invert=True), "open", 5)  # dark ink, speckles removed
+lines = cv.findLines(img, minLength=100)  # (N, 4) segments, longest first
+aligned, M = cv.alignImages(cv.imread("scan.png"), cv.imread("template.png"))  # feature match + RANSAC + warp
+```
+
 ### rotateEx
 
 Rotates an image without cropping its corners. The canvas grows to fit the result.
@@ -267,6 +285,10 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `montage(images, cols=None, gap=0, color=0, cellSize=None)` | Arrange images in a grid. |
 | `cropEx(src, rect, margin=0, fill=None)` | Crop safely when the box extends outside the image (clip, or pad with `fill`). |
 | `boxIoU(boxesA, boxesB)` | IoU of every pair of boxes `(x, y, w, h)`, as an `(N, M)` array. |
+| `nms(boxes, scores, iouThreshold=0.5, scoreThreshold=0, maxCount=None)` | Non-maximum suppression; the indices to keep, best first. |
+| `xywhToXyxy(boxes)`, `xyxyToXywh(boxes)` | Convert between `(x, y, w, h)` and corner boxes. |
+| `clipBoxes(boxes, size)`, `scaleBoxes(boxes, scale, offset=(0, 0), inverse=False)`, `expandBoxes(boxes, ratio=0, pixels=0, size=None)` | Clip to the image, undo a resize or letterbox, grow for context. |
+| `centerCrop(src, size, fill=None)` | Crop `(width, height)` from the middle. |
 | `inRangeEx(src, lowerb, upperb)` | `cv.inRange` for HSV hue ranges that wrap around, such as red (170 to 10). |
 | `cropToContent(src, background=None, tolerance=0, margin=0)` | Trim a uniform border (scan margins, black bars). |
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
@@ -306,6 +328,11 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `toGray(src)`, `toBGR(src)`, `toBGRA(src, alpha=None)` | Convert from any channel count; no error when the image is already in that format. |
 | `flattenAlpha(src, background=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
 | `findContoursEx(image, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE, minArea=0, sort=True)` | `cv.findContours` for any image, largest first, small ones dropped. |
+| `binarize(src, method="otsu", invert=False)` | Any image to a 0/255 mask: Otsu, adaptive, triangle or a fixed threshold. |
+| `morphology(src, op, ksize=3, shape="ellipse", iterations=1)` | `cv.morphologyEx` by name (`"open"`, `"close"`, ...) with the kernel built for you. |
+| `maskBoundingRect(mask)`, `applyMask(src, mask, background=0)` | Box of the nonzero pixels; keep the masked pixels, fill the rest. |
+| `findLines(src, minLength=30, maxGap=10)`, `findCircles(src, minRadius=0, maxRadius=0)`, `detectBlobs(src, minArea=10)` | Hough lines and circles and blob detection as plain `(N, 4)` / `(N, 3)` arrays. |
+| `matchFeatures(src, dst, method="ORB", ratio=0.75)`, `alignImages(src, reference, motion="homography")` | Keypoint matching with the ratio test; register one image onto another. |
 | `fillHoles(mask, maxHoleArea=None)`, `removeSmallObjects(mask, minArea)` | Mask clean-up. |
 | `contourStats(contour)` | Area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent diameter and orientation in one named tuple. |
 | `sortContours(contours, method="left-to-right")`, `filterContours(contours, minArea=0, ..., minCircularity=0)` | Reading order or size order; keep the shapes whose measurements are in range. |
@@ -321,6 +348,8 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `unsharpMask(src, sigma=1.0, amount=1.0, threshold=0)` | Unsharp-mask sharpening. |
 | `drawLabel(img, rect, text, color, fontPath=None)` | Draw a box with a label tag, in place like `cv.rectangle`. Unicode labels with `fontPath`. |
 | `overlayMask(src, mask, color=(0, 0, 255), alpha=0.5)` | Tint the masked pixels, e.g. to show a segmentation. |
+| `drawBoxes(img, boxes, labels=None, colors=None)`, `drawPoints(img, points, labels=False)`, `drawGrid(img, step)` | Many boxes or points at once, each in its own color; a pixel grid. |
+| `distinctColors(count)` | BGR colors that are easy to tell apart, for classes, tracks or clusters. |
 | `putTextEx(src, text, org, fontPath, fontSize, color)` | Draw Unicode text (e.g. Korean) with a TrueType font. `org` is the top-left corner. |
 
 ### videoio

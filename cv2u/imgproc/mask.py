@@ -7,7 +7,16 @@ import numpy as np
 
 from .._validate import check_finite, check_image_not_empty
 
-__all__ = ["cutout", "fillHoles", "findContoursEx", "largestComponent", "removeSmallObjects", "skeletonize"]
+__all__ = [
+    "applyMask",
+    "cutout",
+    "fillHoles",
+    "findContoursEx",
+    "largestComponent",
+    "maskBoundingRect",
+    "removeSmallObjects",
+    "skeletonize",
+]
 
 
 def _foreground(mask: np.ndarray) -> np.ndarray:
@@ -194,4 +203,48 @@ def cutout(src: np.ndarray, mask: np.ndarray, feather: float = 0) -> np.ndarray:
         alpha = cv2.GaussianBlur(alpha, (0, 0), feather)
     out = toBGRA(src)
     out[..., 3] = (out[..., 3].astype(np.uint16) * alpha // 255).astype(np.uint8)
+    return out
+
+
+def maskBoundingRect(mask: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bounding box ``(x, y, width, height)`` of the nonzero pixels of a mask, or ``None`` if it is empty.
+
+    Simpler than ``cv.boundingRect(cv.findNonZero(mask))``, which fails on color masks and on an all-zero mask.
+
+    Raises:
+        ValueError: If ``mask`` is not a 2-D array or an image, or has no pixels.
+    """
+    fg = _foreground(mask)
+    rows = np.flatnonzero(fg.any(axis=1))
+    if rows.size == 0:
+        return None
+    cols = np.flatnonzero(fg.any(axis=0))
+    return int(cols[0]), int(rows[0]), int(cols[-1] - cols[0] + 1), int(rows[-1] - rows[0] + 1)
+
+
+def applyMask(src: np.ndarray, mask: np.ndarray, background: float | Sequence[float] = 0) -> np.ndarray:
+    """Keep the pixels where ``mask`` is nonzero and fill the rest with ``background``.
+
+    ``cv.bitwise_and(src, src, mask=mask)`` only gives a black background, wants an 8-bit single-channel mask,
+    and fails on float images. This works for any dtype and channel count and any background color.
+
+    Args:
+        src: Image.
+        mask: 2-D array (or image) of the shape ``src.shape[:2]``; nonzero (or ``True``) pixels are kept.
+        background: A scalar, or one value per channel of ``src``.
+
+    Returns:
+        A new array with the dtype and shape of ``src``.
+
+    Raises:
+        ValueError: If the mask shape does not match, or ``src`` is empty.
+    """
+    check_image_not_empty("src", src)
+    fg = _foreground(mask)
+    if fg.shape != src.shape[:2]:
+        raise ValueError(f"mask must have the shape {src.shape[:2]}, got {mask.shape[:2]}")
+    out = np.empty_like(src)
+    out[...] = background
+    keep = fg.astype(bool)
+    out[keep] = src[keep]
     return out

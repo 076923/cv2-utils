@@ -49,3 +49,6 @@ site/
 
 # Local-only helpers (e.g. logo generation), not part of the package
 .local/
+
+# Claude Code personal settings
+.claude/settings.local.json

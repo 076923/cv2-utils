@@ -7,7 +7,12 @@ import numpy as np
 
 from .._validate import check_color, check_finite, check_image_not_empty
 
-__all__ = ["cropEx", "cropToContent", "inRangeEx"]
+__all__ = [
+    "centerCrop",
+    "cropEx",
+    "cropToContent",
+    "inRangeEx",
+]
 
 
 def cropEx(
@@ -125,3 +130,26 @@ def inRangeEx(src: np.ndarray, lowerb: Sequence[float], upperb: Sequence[float])
     lower_part = cv2.inRange(src, (0.0, lo[1], lo[2]), hi)
     combined: np.ndarray = cv2.bitwise_or(upper_part, lower_part)
     return combined
+
+
+def centerCrop(src: np.ndarray, size: tuple[int, int] | int, fill: float | Sequence[float] | None = None) -> np.ndarray:
+    """Crop ``size`` ``(width, height)`` from the middle of the image (the usual square crop for a classifier).
+
+    Args:
+        src: Image to crop.
+        size: ``(width, height)``, or one number for a square.
+        fill: ``None`` (default) clips the box to the image when it is larger than the image, so the result may be
+            smaller than ``size``. Otherwise the result has exactly ``size`` and the outside is filled with this color.
+
+    Returns:
+        A new array.
+
+    Raises:
+        ValueError: If ``size`` is not positive or ``src`` is empty.
+    """
+    check_image_not_empty("src", src)
+    width, height = (size, size) if isinstance(size, int) else size
+    if width < 1 or height < 1:
+        raise ValueError(f"size must be positive, got {size}")
+    h, w = src.shape[:2]
+    return cropEx(src, ((w - width) // 2, (h - height) // 2, width, height), fill=fill)

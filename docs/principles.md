@@ -54,6 +54,12 @@ Never re-implement something OpenCV already does well.
 | `matchHistograms`, `colorTransfer` | `cv.equalizeHist` only targets a flat histogram; matching another image's tones or colors is manual. |
 | `imageHash`, `hashDistance` | The `img_hash` module is in contrib, which `opencv-python` does not include. |
 | `boxIoU` | Box overlap is computed only inside `cv.dnn.NMSBoxes`; matching and tracking code rewrites it. |
+| `nms`, `xywhToXyxy`, `xyxyToXywh`, `clipBoxes`, `scaleBoxes`, `expandBoxes` | `cv.dnn.NMSBoxes` wants lists and returns a tuple when empty; mapping boxes back through a letterbox, clipping and padding them are the same arithmetic in every detector script. |
+| `binarize`, `morphology` | `cv.threshold` wants 8-bit grayscale and returns a tuple, adaptive thresholding is a separate function; every `morphologyEx` call starts with `getStructuringElement`. |
+| `findLines`, `findCircles`, `detectBlobs` | `cv.HoughLinesP` / `cv.HoughCircles` return `None` or `(N, 1, 4)` / `(1, N, 3)` and need an edge or blurred image first; `SimpleBlobDetector` takes a `Params` object with a dozen fields. |
+| `matchFeatures`, `alignImages` | Detector, matcher norm, `knnMatch`, ratio test, keypoint unpacking and `findHomography` with RANSAC are the same twelve lines before every registration. |
+| `maskBoundingRect`, `applyMask`, `centerCrop` | `cv.boundingRect(cv.findNonZero(mask))` fails on empty or color masks; `cv.bitwise_and` with a mask only gives black; a center crop is index arithmetic. |
+| `drawBoxes`, `drawPoints`, `drawGrid`, `distinctColors` | Drawing many detections or keypoints in distinct colors, with labels, is a loop everyone writes; OpenCV has no palette. |
 | `pixelate`, `drawRoundedRectangle` | Mosaic anonymization and rounded boxes take resize and arc arithmetic. |
 | `listImages` | Collecting the image files of a folder (in natural order) is glob and sort boilerplate. |
 | `readFrameAt` | Reading one frame means open, seek, read and release. |

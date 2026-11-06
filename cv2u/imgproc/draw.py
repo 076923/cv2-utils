@@ -9,7 +9,17 @@ from PIL import Image, ImageDraw
 
 from .puttext import _load_font
 
-__all__ = ["drawDashedLine", "drawDashedRectangle", "drawHistogram", "drawLabel", "drawRoundedRectangle", "overlayMask"]
+__all__ = [
+    "drawBoxes",
+    "drawDashedLine",
+    "drawDashedRectangle",
+    "drawGrid",
+    "drawHistogram",
+    "drawLabel",
+    "drawPoints",
+    "drawRoundedRectangle",
+    "overlayMask",
+]
 
 Color = float | Sequence[float]
 
@@ -308,4 +318,140 @@ def drawRoundedRectangle(
         cv2.line(img, p, q, color, thickness, lineType)
     for center, start in corners:
         cv2.ellipse(img, center, (r, r), 0, start, start + 90, color, thickness, lineType)
+    return img
+
+
+def drawBoxes(
+    img: np.ndarray,
+    boxes: Sequence[Sequence[float]] | np.ndarray,
+    labels: Sequence[str] | None = None,
+    colors: Sequence[Color] | Color | None = None,
+    thickness: int = 2,
+    fontScale: float = 0.5,
+    fontPath: str | os.PathLike[str] | None = None,
+    fontSize: int = 16,
+) -> np.ndarray:
+    """Draw many boxes ``(x, y, width, height)`` at once, each with an optional label tag, in place.
+
+    The loop around :func:`drawLabel` that every detection demo writes, with one color per box from a fixed
+    palette by default.
+
+    Args:
+        img: Image to draw on.
+        boxes: Boxes as ``(N, 4)``; floats are rounded.
+        labels: One text per box, or ``None`` for plain boxes.
+        colors: One color per box, one color for all, or ``None`` for :func:`distinctColors`.
+        thickness: Line thickness.
+        fontScale: Hershey font size for the labels.
+        fontPath: TrueType font for Unicode labels (see :func:`drawLabel`).
+        fontSize: Font size in pixels for ``fontPath``.
+
+    Returns:
+        ``img``.
+
+    Raises:
+        ValueError: If ``labels`` or ``colors`` has a different length than ``boxes``.
+    """
+    from .color import distinctColors
+
+    array = np.asarray(boxes, dtype=np.float64).reshape(-1, 4) if np.size(boxes) else np.zeros((0, 4))
+    count = len(array)
+    if labels is not None and len(labels) != count:
+        raise ValueError(f"labels must have one entry per box, got {len(labels)} for {count} boxes")
+    palette: list[Color]
+    if colors is None:
+        palette = list(distinctColors(max(count, 1)))
+    elif isinstance(colors, (int, float)) or (
+        len(colors) in (3, 4) and all(isinstance(c, (int, float)) for c in colors)
+    ):
+        palette = [colors] * max(count, 1)  # type: ignore[list-item]
+    else:
+        palette = list(colors)
+        if len(palette) != count:
+            raise ValueError(f"colors must have one entry per box, got {len(palette)} for {count} boxes")
+    for i, box in enumerate(array):
+        x, y, w, h = (round(v) for v in box)
+        if w < 1 or h < 1:
+            continue
+        color = palette[i % len(palette)]
+        if labels is None:
+            cv2.rectangle(img, (x, y), (x + w - 1, y + h - 1), color, thickness)
+        else:
+            drawLabel(img, (x, y, w, h), labels[i], color, thickness, fontScale, fontPath=fontPath, fontSize=fontSize)
+    return img
+
+
+def drawPoints(
+    img: np.ndarray,
+    points: Sequence[Sequence[float]] | np.ndarray,
+    color: Color = (0, 0, 255),
+    radius: int = 3,
+    thickness: int = cv2.FILLED,
+    labels: bool | Sequence[str] = False,
+    fontScale: float = 0.4,
+) -> np.ndarray:
+    """Draw points (keypoints, corners, landmarks) as circles, optionally numbered, in place.
+
+    Args:
+        img: Image to draw on.
+        points: ``(N, 2)`` coordinates, or an ``(N, 1, 2)`` contour; floats are rounded.
+        color: Circle color.
+        radius: Circle radius in pixels.
+        thickness: ``cv.FILLED`` (default) or an outline thickness.
+        labels: ``True`` writes the index next to each point; a sequence gives the texts.
+        fontScale: Hershey font size for the labels.
+
+    Returns:
+        ``img``.
+
+    Raises:
+        ValueError: If the points are not 2-D, ``radius`` is negative, or ``labels`` has a different length.
+    """
+    array = np.asarray(points, dtype=np.float64).reshape(-1, 2) if np.size(points) else np.zeros((0, 2))
+    if not isinstance(labels, bool) and len(labels) != len(array):
+        raise ValueError(f"labels must have one entry per point, got {len(labels)} for {len(array)} points")
+    if radius < 0:
+        raise ValueError(f"radius must not be negative, got {radius}")
+    for i, (x, y) in enumerate(array):
+        center = (round(x), round(y))
+        cv2.circle(img, center, radius, color, thickness, cv2.LINE_AA)
+        if labels is False:
+            continue
+        text = str(i) if labels is True else str(labels[i])
+        org = (center[0] + radius + 2, center[1] + radius)
+        cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, color, 1, cv2.LINE_AA)
+    return img
+
+
+def drawGrid(
+    img: np.ndarray,
+    step: int | tuple[int, int],
+    color: Color = (0, 255, 0),
+    thickness: int = 1,
+    offset: tuple[int, int] = (0, 0),
+) -> np.ndarray:
+    """Draw a grid of lines every ``step`` pixels, in place (for tile layouts, calibration or alignment checks).
+
+    Args:
+        img: Image to draw on.
+        step: Cell size, one number or ``(width, height)``.
+        color: Line color.
+        thickness: Line thickness.
+        offset: ``(x, y)`` of the first vertical and horizontal line.
+
+    Returns:
+        ``img``.
+
+    Raises:
+        ValueError: If ``step`` is not positive.
+    """
+    step_x, step_y = (step, step) if isinstance(step, int) else step
+    if step_x < 1 or step_y < 1:
+        raise ValueError(f"step must be positive, got {step}")
+    height, width = img.shape[:2]
+    for x in range(offset[0] % step_x, width, step_x):
+        cv2.line(img, (x, 0), (x, height - 1), color, thickness)
+    for y in range(offset[1] % step_y, height, step_y):
+        cv2.line(img, (0, y), (width - 1, y), color, thickness)
     return img
