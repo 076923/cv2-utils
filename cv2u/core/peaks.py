@@ -16,6 +16,7 @@ linear in the number of pixels.
 """
 
 import itertools
+import math
 
 import cv2
 import numpy as np
@@ -122,8 +123,10 @@ def peakColors(
         raise ValueError(f"src must be an 8-bit BGR image, got shape {src.shape} and dtype {src.dtype}")
     if not 2 <= bins <= 64:
         raise ValueError(f"bins must be between 2 and 64, got {bins}")
-    if sigma < 0:
-        raise ValueError(f"sigma must not be negative, got {sigma}")
+    if src.size == 0:
+        raise ValueError("src must not be empty")
+    if not math.isfinite(sigma) or sigma < 0:
+        raise ValueError(f"sigma must be a non-negative finite number, got {sigma}")
     if not 0.0 <= minShare < 1.0:
         raise ValueError(f"minShare must be in [0, 1), got {minShare}")
     if minRegion < 0:

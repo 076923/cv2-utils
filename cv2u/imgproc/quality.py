@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 
+from .._validate import check_finite, check_image_not_empty
 from .color import toGray
 
 __all__ = ["diffMask", "hashDistance", "imageHash", "sharpnessScore", "ssim"]
@@ -24,6 +25,7 @@ def sharpnessScore(src: np.ndarray) -> float:
 def _check_pair(a: np.ndarray, b: np.ndarray) -> None:
     if a.shape != b.shape:
         raise ValueError(f"a and b must have the same shape, got {a.shape} and {b.shape}")
+    check_image_not_empty("a", a)
 
 
 def ssim(a: np.ndarray, b: np.ndarray, dataRange: float | None = None) -> float:
@@ -39,9 +41,11 @@ def ssim(a: np.ndarray, b: np.ndarray, dataRange: float | None = None) -> float:
         dataRange: Value range (255 for 8-bit). By default taken from the dtype; 1.0 for float images.
 
     Raises:
-        ValueError: If the shapes differ.
+        ValueError: If the shapes differ, the images are empty, or ``dataRange`` is not positive.
     """
     _check_pair(a, b)
+    if dataRange is not None:
+        check_finite("dataRange", dataRange, positive=True)
     if dataRange is None:
         dataRange = float(np.iinfo(a.dtype).max) if np.issubdtype(a.dtype, np.integer) else 1.0
     c1, c2 = (0.01 * dataRange) ** 2, (0.03 * dataRange) ** 2
@@ -72,9 +76,12 @@ def diffMask(a: np.ndarray, b: np.ndarray, threshold: float = 25, minArea: int =
         ``uint8`` mask with values 0 and 255, of shape ``a.shape[:2]``.
 
     Raises:
-        ValueError: If the shapes differ.
+        ValueError: If the shapes differ, the images are empty, or ``threshold`` or ``minArea`` is negative.
     """
     _check_pair(a, b)
+    check_finite("threshold", threshold, nonnegative=True)
+    if minArea < 0:
+        raise ValueError(f"minArea must not be negative, got {minArea}")
     difference = cv2.absdiff(a, b)
     if difference.ndim == 3:
         difference = difference.max(axis=2)

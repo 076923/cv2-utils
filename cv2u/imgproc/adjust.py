@@ -3,12 +3,15 @@
 import cv2
 import numpy as np
 
+from .._validate import check_finite, check_image_not_empty
+
 __all__ = ["adjustBrightnessContrast", "adjustHSV", "autoContrast", "colorTransfer", "matchHistograms", "whiteBalance"]
 
 
 def _split_alpha(src: np.ndarray, name: str = "src") -> tuple[np.ndarray, np.ndarray | None]:
     if src.dtype != np.uint8:
         raise ValueError(f"{name} must be an 8-bit (uint8) image, got dtype {src.dtype}")
+    check_image_not_empty(name, src)
     if src.ndim == 3 and src.shape[2] == 4:
         return src[..., :3], src[..., 3]
     if src.ndim == 2 or (src.ndim == 3 and src.shape[2] in (1, 3)):
@@ -37,10 +40,10 @@ def adjustBrightnessContrast(src: np.ndarray, brightness: float = 0, contrast: f
         contrast: ``1`` keeps the contrast, ``> 1`` increases it, ``< 1`` reduces it, ``0`` gives flat gray.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit or ``contrast`` is negative.
+        ValueError: If ``src`` is not 8-bit or is empty, ``contrast`` is negative, or a value is not finite.
     """
-    if contrast < 0:
-        raise ValueError(f"contrast must not be negative, got {contrast}")
+    check_finite("brightness", brightness)
+    check_finite("contrast", contrast, nonnegative=True)
     color, alpha = _split_alpha(src)
     table = (np.arange(256) - 128.0) * contrast + 128.0 + brightness
     return _join_alpha(_lut(color, table), alpha)
@@ -59,10 +62,12 @@ def adjustHSV(src: np.ndarray, hue: float = 0, saturation: float = 1.0, value: f
         value: Brightness factor.
 
     Raises:
-        ValueError: If ``src`` is not an 8-bit color image, or a factor is negative.
+        ValueError: If ``src`` is not an 8-bit color image or is empty, a factor is negative, or a value is not
+            finite.
     """
-    if saturation < 0 or value < 0:
-        raise ValueError(f"saturation and value must not be negative, got {saturation} and {value}")
+    check_finite("hue", hue)
+    check_finite("saturation", saturation, nonnegative=True)
+    check_finite("value", value, nonnegative=True)
     color, alpha = _split_alpha(src)
     if color.ndim != 3 or color.shape[2] != 3:
         raise ValueError(f"src must be a color (BGR or BGRA) image, got shape {src.shape}")
@@ -87,7 +92,7 @@ def autoContrast(src: np.ndarray, clip: float = 0.01, perChannel: bool = False) 
             all channels share one stretch, which keeps the colors.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit or ``clip`` is outside ``[0, 0.5)``.
+        ValueError: If ``src`` is not 8-bit or is empty, or ``clip`` is outside ``[0, 0.5)``.
     """
     if not 0.0 <= clip < 0.5:
         raise ValueError(f"clip must be in [0, 0.5), got {clip}")
@@ -118,7 +123,7 @@ def whiteBalance(src: np.ndarray, method: str = "whitePatch") -> np.ndarray:
             objects, but shifts the colors of scenes dominated by one color (e.g. a green object on black).
 
     Raises:
-        ValueError: If ``src`` is not an 8-bit color image, or ``method`` is unknown.
+        ValueError: If ``src`` is not an 8-bit color image or is empty, or ``method`` is unknown.
     """
     color, alpha = _split_alpha(src)
     if color.ndim != 3 or color.shape[2] != 3:
@@ -159,7 +164,7 @@ def matchHistograms(src: np.ndarray, reference: np.ndarray) -> np.ndarray:
         The adjusted image.
 
     Raises:
-        ValueError: If the images are not 8-bit or their color channels differ.
+        ValueError: If the images are not 8-bit, are empty, or their color channels differ.
     """
     color, alpha = _split_alpha(src)
     ref, _ = _split_alpha(reference, "reference")
@@ -185,7 +190,7 @@ def colorTransfer(src: np.ndarray, reference: np.ndarray) -> np.ndarray:
         The recolored image.
 
     Raises:
-        ValueError: If an image is not 8-bit BGR or BGRA.
+        ValueError: If an image is not 8-bit BGR or BGRA, or is empty.
     """
     color, alpha = _split_alpha(src)
     ref, _ = _split_alpha(reference, "reference")

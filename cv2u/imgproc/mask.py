@@ -5,17 +5,18 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .._validate import check_finite, check_image_not_empty
+
 __all__ = ["cutout", "fillHoles", "findContoursEx", "largestComponent", "removeSmallObjects", "skeletonize"]
 
 
 def _foreground(mask: np.ndarray) -> np.ndarray:
     """Nonzero pixels as a uint8 0/1 array (any channel count; for color images, any nonzero channel)."""
-    if mask.dtype == bool:
-        return mask.astype(np.uint8)
+    if mask.ndim not in (2, 3):
+        raise ValueError(f"mask must be a 2-D array or an image, got shape {mask.shape}")
+    check_image_not_empty("mask", mask)
     if mask.ndim == 3:
         return np.asarray((mask != 0).any(axis=2), dtype=np.uint8)
-    if mask.ndim != 2:
-        raise ValueError(f"mask must be a 2-D array or an image, got shape {mask.shape}")
     return np.asarray(mask != 0, dtype=np.uint8)
 
 
@@ -30,8 +31,10 @@ def fillHoles(mask: np.ndarray, maxHoleArea: int | None = None) -> np.ndarray:
         ``uint8`` mask with values 0 and 255.
 
     Raises:
-        ValueError: If ``mask`` is not a 2-D array or an image.
+        ValueError: If ``mask`` is not a 2-D array or an image, is empty, or ``maxHoleArea`` is negative.
     """
+    if maxHoleArea is not None and maxHoleArea < 0:
+        raise ValueError(f"maxHoleArea must not be negative, got {maxHoleArea}")
     fg = _foreground(mask)
     # Holes are 4-connected background regions (the complement of 8-connected foreground).
     count, labels, stats, _ = cv2.connectedComponentsWithStats(1 - fg, connectivity=4)
@@ -57,10 +60,13 @@ def removeSmallObjects(mask: np.ndarray, minArea: int, connectivity: int = 8) ->
         ``uint8`` mask with values 0 and 255.
 
     Raises:
-        ValueError: If ``connectivity`` is not 4 or 8, or ``mask`` is not a 2-D array or an image.
+        ValueError: If ``connectivity`` is not 4 or 8, ``minArea`` is negative, or ``mask`` is not a 2-D array or an
+            image, or is empty.
     """
     if connectivity not in (4, 8):
         raise ValueError(f"connectivity must be 4 or 8, got {connectivity}")
+    if minArea < 0:
+        raise ValueError(f"minArea must not be negative, got {minArea}")
     fg = _foreground(mask)
     _, labels, stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=connectivity)
     keep = stats[:, cv2.CC_STAT_AREA] >= minArea
@@ -90,7 +96,11 @@ def findContoursEx(
 
     Returns:
         A list of contours, each of shape ``(N, 1, 2)``, ready for ``cv.drawContours``.
+
+    Raises:
+        ValueError: If ``image`` is not a 2-D array or an image, is empty, or ``minArea`` is not a finite number.
     """
+    check_finite("minArea", minArea)
     fg = _foreground(image)
     contours: Sequence[np.ndarray]
     contours, _ = cv2.findContours(fg, mode, method)
@@ -108,7 +118,7 @@ def largestComponent(mask: np.ndarray, connectivity: int = 8) -> np.ndarray:
         ``uint8`` mask with values 0 and 255; all zeros if the mask is empty.
 
     Raises:
-        ValueError: If ``connectivity`` is not 4 or 8.
+        ValueError: If ``connectivity`` is not 4 or 8, or ``mask`` is not a 2-D array or an image, or is empty.
     """
     if connectivity not in (4, 8):
         raise ValueError(f"connectivity must be 4 or 8, got {connectivity}")
@@ -128,6 +138,9 @@ def skeletonize(mask: np.ndarray) -> np.ndarray:
 
     Returns:
         ``uint8`` mask with values 0 and 255.
+
+    Raises:
+        ValueError: If ``mask`` is not a 2-D array or an image, or is empty.
     """
     img = np.pad(_foreground(mask), 1)
     while True:
@@ -166,7 +179,7 @@ def cutout(src: np.ndarray, mask: np.ndarray, feather: float = 0) -> np.ndarray:
         ``uint8`` BGRA image.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit, or the mask shape does not match.
+        ValueError: If ``src`` is not 8-bit or is empty, the mask shape does not match, or ``feather`` is negative.
     """
     from .color import toBGRA
 
@@ -174,6 +187,8 @@ def cutout(src: np.ndarray, mask: np.ndarray, feather: float = 0) -> np.ndarray:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
     if mask.ndim != 2 or mask.shape != src.shape[:2]:
         raise ValueError(f"mask must have the shape {src.shape[:2]}, got {mask.shape}")
+    check_image_not_empty("src", src)
+    check_finite("feather", feather, nonnegative=True)
     alpha = (mask.astype(np.uint8) * 255) if mask.dtype == bool else np.clip(mask, 0, 255).astype(np.uint8)
     if feather > 0:
         alpha = cv2.GaussianBlur(alpha, (0, 0), feather)

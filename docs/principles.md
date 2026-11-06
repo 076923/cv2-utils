@@ -101,7 +101,9 @@ color quantization work without scikit-learn.
 - Every public function has type hints and a docstring. Type checkers and IDEs also see OpenCV's own signatures
   through cv2u. *(Enforced by mypy, pyright and a test.)*
 - Invalid input raises `ValueError` with a message that names the problem, instead of an internal NumPy or OpenCV
-  error.
+  error. Concretely: an empty image, a `NaN` or infinite number, a negative size or a color outside the image's dtype
+  range is rejected up front (helpers in `cv2u/_validate.py`); OpenCV flag values are passed through, as OpenCV
+  reports those itself. *(Enforced by `tests/test_validation.py`.)*
 
 ## 6. Change carefully
 

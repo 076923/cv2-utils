@@ -2,17 +2,22 @@
 
 import math
 from collections.abc import Sequence
+from typing import Any
 
 import cv2
 import numpy as np
+
+from .._validate import check_color
 
 __all__ = ["mergeTiles", "padToMultiple", "padToSize", "splitTiles"]
 
 Color = float | Sequence[float]
 
 
-def _border_value(color: Color) -> list[float]:
-    return [float(color)] * 4 if isinstance(color, (int, float)) else [float(c) for c in color]
+def _border_value(color: Color, dtype: np.dtype[Any]) -> list[float]:
+    values = [float(color)] * 4 if isinstance(color, (int, float)) else [float(c) for c in color]
+    check_color("color", values, dtype)
+    return values
 
 
 def padToMultiple(src: np.ndarray, multiple: int, color: Color = 0) -> np.ndarray:
@@ -30,7 +35,9 @@ def padToMultiple(src: np.ndarray, multiple: int, color: Color = 0) -> np.ndarra
     bottom, right = -h % multiple, -w % multiple
     if bottom == right == 0:
         return src.copy()
-    dst: np.ndarray = cv2.copyMakeBorder(src, 0, bottom, 0, right, cv2.BORDER_CONSTANT, value=_border_value(color))
+    dst: np.ndarray = cv2.copyMakeBorder(
+        src, 0, bottom, 0, right, cv2.BORDER_CONSTANT, value=_border_value(color, src.dtype)
+    )
     return dst
 
 
@@ -53,7 +60,7 @@ def padToSize(src: np.ndarray, size: tuple[int, int], color: Color = 0, center: 
     left = (out_w - w) // 2 if center else 0
     top = (out_h - h) // 2 if center else 0
     dst: np.ndarray = cv2.copyMakeBorder(
-        src, top, out_h - h - top, left, out_w - w - left, cv2.BORDER_CONSTANT, value=_border_value(color)
+        src, top, out_h - h - top, left, out_w - w - left, cv2.BORDER_CONSTANT, value=_border_value(color, src.dtype)
     )
     return dst
 

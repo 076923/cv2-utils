@@ -5,6 +5,8 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .._validate import check_color, check_finite, check_image_not_empty
+
 __all__ = ["cropEx", "cropToContent", "inRangeEx"]
 
 
@@ -69,10 +71,14 @@ def cropToContent(
         A new array with the content. If the whole image is border, a copy of ``src`` is returned unchanged.
 
     Raises:
-        ValueError: If ``tolerance`` or ``margin`` is negative.
+        ValueError: If ``src`` is empty, ``tolerance`` or ``margin`` is negative, or ``background`` is not finite.
     """
-    if tolerance < 0 or margin < 0:
-        raise ValueError(f"tolerance and margin must not be negative, got {tolerance} and {margin}")
+    check_image_not_empty("src", src)
+    check_finite("tolerance", tolerance, nonnegative=True)
+    if margin < 0:
+        raise ValueError(f"margin must not be negative, got {margin}")
+    if background is not None:
+        check_color("background", np.ravel(np.asarray(background, np.float64)).tolist())
     pixels = src.astype(np.float64)
     if pixels.ndim == 2:
         pixels = pixels[..., None]
