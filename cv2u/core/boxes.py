@@ -5,6 +5,7 @@ Detector output needs the same handful of steps in every project: convert betwee
 OpenCV has ``cv.dnn.NMSBoxes`` for one of those and nothing for the rest.
 """
 
+import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
@@ -113,6 +114,27 @@ def nms(
         return np.zeros(0, dtype=np.int64)
     order = np.argsort(-score_array, kind="stable")
     order = order[score_array[order] >= scoreThreshold]
+    if len(order) == 0:
+        return np.zeros(0, dtype=np.int64)
+    if hasattr(cv2, "dnn"):
+        # ``cv.dnn.NMSBoxes`` (C++) does the overlap test. It wants a non-negative score threshold and drops scores
+        # equal to it, so the candidates (already filtered and in stable score order) get rank scores instead; it
+        # returns () when nothing survives.
+        rank = np.linspace(1.0, 0.5, len(order), dtype=np.float32)
+        kept = cv2.dnn.NMSBoxes(array[order].astype(np.float32), rank, 0.0, float(iouThreshold))  # type: ignore[arg-type]
+        indices = np.asarray(kept, dtype=np.int64).reshape(-1)
+        if maxCount is not None:
+            indices = indices[:maxCount]
+        return order[indices].astype(np.int64)
+    return _nms_numpy(array, order, iouThreshold, maxCount)
+
+
+def _nms_numpy(array: np.ndarray, order: np.ndarray, iouThreshold: float, maxCount: int | None) -> np.ndarray:
+    """Greedy NMS over ``order`` (candidate indices, best first) without ``cv.dnn``."""
+    # Corners and areas once; the loop below only does the IoU arithmetic (boxIoU would re-validate every time).
+    x1, y1 = array[:, 0], array[:, 1]
+    x2, y2 = x1 + array[:, 2], y1 + array[:, 3]
+    areas = array[:, 2] * array[:, 3]
     keep: list[int] = []
     while len(order) and (maxCount is None or len(keep) < maxCount):
         best = int(order[0])
@@ -120,7 +142,11 @@ def nms(
         rest = order[1:]
         if len(rest) == 0:
             break
-        overlap = boxIoU(array[best], array[rest])[0]
+        iw = np.clip(np.minimum(x2[best], x2[rest]) - np.maximum(x1[best], x1[rest]), 0, None)
+        ih = np.clip(np.minimum(y2[best], y2[rest]) - np.maximum(y1[best], y1[rest]), 0, None)
+        inter = iw * ih
+        union = areas[best] + areas[rest] - inter
+        overlap = np.divide(inter, union, out=np.zeros_like(inter), where=union > 0)
         order = rest[overlap <= iouThreshold]
     return np.array(keep, dtype=np.int64)
 

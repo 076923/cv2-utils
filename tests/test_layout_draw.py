@@ -97,6 +97,41 @@ def test_splitTiles_small_image_and_validation(img):
         cv.mergeTiles([], (10, 10))
 
 
+# --- mapTiles -----------------------------------------------------------------------------------
+
+
+def test_mapTiles_identity_and_channel_change(img):
+    src = cv.resize(img, (70, 50))
+    np.testing.assert_array_equal(cv.mapTiles(src, (32, 32), lambda t: t, overlap=8), src)
+    gray = cv.mapTiles(src, (32, 32), lambda t: cv.cvtColor(t, cv.COLOR_BGR2GRAY))
+    assert gray.shape == (50, 70)
+    np.testing.assert_array_equal(gray, cv.cvtColor(src, cv.COLOR_BGR2GRAY))
+    heat = cv.mapTiles(src, (32, 32), lambda t: t[..., 0].astype(np.float32) / 255)
+    assert heat.dtype == np.float32
+    assert heat.shape == (50, 70)
+
+
+def test_mapTiles_calls_func_per_tile_with_progress(img):
+    src = cv.resize(img, (64, 64))
+    seen = []
+    progress = []
+    out = cv.mapTiles(
+        src, (32, 32), lambda t: (seen.append(t.shape), t)[1], progress=lambda d, n: progress.append((d, n))
+    )
+    assert seen == [(32, 32, 3)] * 4
+    assert progress == [(1, 4), (2, 4), (3, 4), (4, 4)]
+    np.testing.assert_array_equal(out, src)
+
+
+def test_mapTiles_validation(img):
+    with pytest.raises(ValueError, match="same size"):
+        cv.mapTiles(img, (16, 16), lambda t: t[:8])
+    with pytest.raises(ValueError, match="src"):
+        cv.mapTiles(np.zeros((0, 10, 3), np.uint8), (16, 16), lambda t: t)
+    with pytest.raises(ValueError):
+        cv.mapTiles(img, (0, 16), lambda t: t)
+
+
 # --- drawDashedLine / drawDashedRectangle / drawHistogram ------------------------------------
 
 

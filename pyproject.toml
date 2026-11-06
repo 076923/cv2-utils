@@ -153,8 +153,10 @@ test = ["pytest>=8", "pytest-cov>=6"]
 typing = ["mypy>=1.13", "pyright>=1.1.390"]
 lint = ["ruff>=0.8"]
 docs = ["zensical>=0.0.74", "mkdocstrings-python>=2.0"]
+bench = ["pytest-benchmark>=5"]
 dev = [
     { include-group = "test" },
+    { include-group = "bench" },
     { include-group = "typing" },
     { include-group = "lint" },
     { include-group = "docs" },

@@ -27,7 +27,23 @@ mypy                # type checking (strict)
 ruff check .        # lint
 ruff format .       # format
 zensical serve      # preview the documentation at http://localhost:8000
+pytest benchmarks   # timings and performance regression guards (see below)
 ```
+
+### Benchmarks
+
+`benchmarks/` is not part of the normal test run. `benchmarks/test_overhead.py` holds the regression guards: each
+cv2u wrapper is timed against the plain OpenCV (or NumPy) call it wraps, in the same process, and fails when it is
+much slower. These are machine-independent and run in CI. `benchmarks/test_benchmarks.py` records absolute timings
+with [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) for comparing two versions on one machine:
+
+```bash
+pytest benchmarks --benchmark-autosave            # on main: save a baseline in .benchmarks/
+pytest benchmarks --benchmark-compare             # on your branch: compare with the last saved run
+```
+
+CI runs the guards on every pull request and prints the timings next to those of the last run on `main` (the
+`benchmark` job); the timings are informational, since runner speed varies from run to run.
 
 CI builds the wheel once and runs the tests against it on Linux for every supported Python version,
 on Windows and macOS for the newest Python, without the `cluster` extra, with the headless and contrib OpenCV

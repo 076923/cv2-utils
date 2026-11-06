@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from .._validate import check_image_not_empty
+
 __all__ = ["fromPillow", "imdecodeBase64", "imencodeBase64", "toPillow"]
 
 _MIME_TYPES = {
@@ -25,47 +27,68 @@ _MIME_TYPES = {
 def toPillow(src: np.ndarray) -> Image.Image:
     """Convert an OpenCV image to a Pillow image, fixing the channel order (BGR to RGB, BGRA to RGBA).
 
+    Every single-channel dtype Pillow has a mode for is accepted, so masks, depth maps and float images round-trip
+    through :func:`fromPillow` unchanged:
+
+    | ``src``                        | Pillow mode |
+    |--------------------------------|-------------|
+    | ``uint8`` gray                 | ``"L"``     |
+    | ``uint8`` gray + alpha (2 ch.) | ``"LA"``    |
+    | ``uint8`` BGR / BGRA           | ``"RGB"`` / ``"RGBA"`` |
+    | ``uint16`` gray                | ``"I;16"``  |
+    | ``int32`` gray                 | ``"I"``     |
+    | ``float32`` gray               | ``"F"``     |
+    | ``bool`` gray                  | ``"1"``     |
+
     Args:
-        src: 8-bit grayscale, BGR or BGRA image, or a 16-bit grayscale image.
+        src: Image to convert. Color images must be 8-bit; Pillow has no 16-bit or float color modes.
 
     Raises:
-        ValueError: If the dtype or channel count is not supported.
+        ValueError: If the image is empty, or its dtype or channel count has no Pillow mode.
     """
+    check_image_not_empty("src", src)
     if src.ndim == 2 or (src.ndim == 3 and src.shape[2] == 1):
-        gray = src.reshape(src.shape[:2])
-        if gray.dtype == np.uint8:
-            return Image.fromarray(gray, mode="L")
-        if gray.dtype == np.uint16:
-            return Image.fromarray(gray)  # mode "I;16"
-        raise ValueError(f"grayscale images must be uint8 or uint16, got {src.dtype}")
+        gray = np.ascontiguousarray(src.reshape(src.shape[:2]))
+        if gray.dtype in (np.uint8, np.uint16, np.int32, np.float32, np.bool_):
+            return Image.fromarray(gray)  # "L", "I;16", "I", "F", "1"
+        raise ValueError(f"grayscale images must be uint8, uint16, int32, float32 or bool, got {src.dtype}")
+    if src.ndim != 3:
+        raise ValueError(f"src must be a 2-D or 3-D image, got shape {src.shape}")
     if src.dtype != np.uint8:
         raise ValueError(f"color images must be 8-bit (uint8), got {src.dtype}")
+    if src.shape[2] == 2:
+        return Image.fromarray(np.ascontiguousarray(src), mode="LA")
     if src.shape[2] == 3:
         return Image.fromarray(cv2.cvtColor(src, cv2.COLOR_BGR2RGB))
     if src.shape[2] == 4:
         return Image.fromarray(cv2.cvtColor(src, cv2.COLOR_BGRA2RGBA))
-    raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
+    raise ValueError(f"src must have 1, 2, 3 or 4 channels, got shape {src.shape}")
 
 
 def fromPillow(image: Image.Image) -> np.ndarray:
     """Convert a Pillow image to an OpenCV image: BGR, BGRA (with transparency) or grayscale.
 
     Handles the cases where ``np.asarray(image)`` silently gives the wrong result: palette images (``"P"``, which
-    would give palette indices instead of colors), ``"CMYK"`` (4 channels that are not BGRA), ``"YCbCr"``, ``"LA"`` and
-    1-bit images.
+    would give palette indices instead of colors), ``"CMYK"`` (4 channels that are not BGRA), ``"YCbCr"``, ``"LAB"``,
+    ``"HSV"``, ``"LA"``, premultiplied-alpha (``"RGBa"``, ``"La"``), 1-bit and big-endian 16-bit images. Every Pillow
+    mode is accepted.
 
     Returns:
-        ``uint8`` BGR for color images, BGRA for images with transparency, a 2-D array for grayscale
-        (``uint16`` for 16-bit grayscale).
+        ``uint8`` BGR for color images, BGRA for images with transparency (a palette with a transparent entry,
+        ``"RGBA"``, ``"LA"``, ``"PA"``, ``"RGBa"``, ``"La"``), a 2-D array for grayscale: ``uint8`` for ``"L"`` and
+        ``"1"``, ``uint16`` for 16-bit (``"I;16"`` in any byte order), ``int32`` for ``"I"``, ``float32`` for ``"F"``.
     """
     mode = image.mode
-    if mode in ("L", "I;16"):
-        return np.array(image)
+    if mode in ("L", "I", "F"):
+        return np.array(image)  # 8-bit, 32-bit integer or float grayscale, as is
+    if mode.startswith("I;16"):
+        return np.array(image, dtype=np.uint16)  # native byte order, whatever the file used
     if mode == "1":
         return np.array(image.convert("L"))
-    if mode in ("I", "F"):
-        return np.array(image)  # 32-bit integer or float grayscale, as is
-    has_alpha = mode in ("RGBA", "LA", "PA") or (mode == "P" and "transparency" in image.info)
+    if mode == "La":
+        image = image.convert("LA")  # Pillow cannot convert premultiplied "La" to RGB(A) directly
+        mode = "LA"
+    has_alpha = mode in ("RGBA", "RGBa", "LA", "PA") or (mode == "P" and "transparency" in image.info)
     if has_alpha:
         return cv2.cvtColor(np.array(image.convert("RGBA")), cv2.COLOR_RGBA2BGRA)
     return cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
