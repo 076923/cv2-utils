@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `boundingRects`: every `cv.boundingRect` as an `(N, 4)` array, ready for `boxIoU`.
   - `asContour`: any points to the `(N, 1, 2)` `int32` layout OpenCV wants.
 
+- `urlread(..., maxBytes=...)`: reject responses larger than a limit, from the `Content-Length` header when
+  present and otherwise while reading, so a large or hostile URL cannot fill memory.
+
 ### Fixed
 
 - `writeVideo` silently dropped frames whose channel count differed from the first frame (the writer skipped
@@ -38,11 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `removeSmallObjects`, `largestComponent`, `findContoursEx`, `skeletonize`, `cutout`, `letterbox`, `resizeEx`,
   `equalizeHistEx`, `unsharpMask`, `pixelate`, `ssim`, `diffMask`, `gammaCorrection`, `toGray`, `toBGR`,
   `toBGRA`, `hconcatEx`, `vconcatEx`, `montage`, `overlayImage`, `padToSize`, `padToMultiple`).
-
-### Added
-
-- `urlread(..., maxBytes=...)`: reject responses larger than a limit, from the `Content-Length` header when
-  present and otherwise while reading, so a large or hostile URL cannot fill memory.
 
 ## [0.2.1] - 2026-11-06
 
