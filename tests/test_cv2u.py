@@ -81,6 +81,27 @@ def test_extension_names_follow_opencv_style():
         assert re.fullmatch(r"[A-Za-z][A-Za-z0-9]*|[A-Z][A-Z0-9_]*", name), name
 
 
+def test_top_level_exports_every_submodule_name():
+    # Principle: ``import cv2u as cv`` reaches every extension; nothing is reachable only from a submodule.
+    from cv2u import core, flag, highgui, imgcodecs, imgproc, videoio
+
+    submodule_names = set()
+    for module in (core, flag, highgui, imgcodecs, imgproc, videoio):
+        submodule_names |= set(module.__all__)
+    assert submodule_names == set(cv.__all__)
+
+
+def test_readme_api_names_exist():
+    # Every ``cv.<name>`` in the README resolves on cv2u (an extension or a cv2 passthrough).
+    import re
+    from pathlib import Path
+
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    names = set(re.findall(r"\bcv\.([A-Za-z_][A-Za-z0-9_]*)", readme))
+    assert names
+    assert [name for name in sorted(names) if not hasattr(cv, name)] == []
+
+
 def test_extensions_are_documented():
     for name in cv.__all__:
         obj = getattr(cv, name)
