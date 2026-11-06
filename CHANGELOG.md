@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- Contours (`imgproc`), 11 new APIs (100 -> 111): the steps after `cv.findContours` that every project rewrites.
+  - `contourStats`: area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent
+    diameter and orientation as one `ContourStats` named tuple.
+  - `sortContours`: reading order (left-to-right, top-to-bottom, ...) or by area / perimeter.
+  - `filterContours`: keep the contours whose measurements fall within the given ranges.
+  - `contoursToMask`: contours back to a filled or outlined mask (the inverse of `findContoursEx`).
+  - `cropContour`: crop one object with the outside blanked, kept, or transparent (BGRA).
+  - `approxContour`: `cv.approxPolyDP` with the tolerance as a fraction of the perimeter.
+  - `mergeContours`: one convex hull around several pieces.
+  - `drawContoursEx`: each contour in its own color, optionally numbered or labeled at its centroid.
+  - `boundingRects`: every `cv.boundingRect` as an `(N, 4)` array, ready for `boxIoU`.
+  - `asContour`: any points to the `(N, 1, 2)` `int32` layout OpenCV wants.
+
 ## [0.2.2] - 2026-11-06
 
 ### Fixed
@@ -154,6 +171,7 @@ First official release.
 - Releases are published from GitHub Actions with PyPI trusted publishing and digital attestations.
 - `SECURITY.md`, `CODE_OF_CONDUCT.md` and `CITATION.cff`.
 
+[0.3.0]: https://github.com/076923/cv2-utils/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/076923/cv2-utils/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/076923/cv2-utils/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/076923/cv2-utils/compare/v0.1.0...v0.2.0

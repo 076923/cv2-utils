@@ -146,8 +146,13 @@ import cv2u as cv
 scan = cv.cropToContent(cv.imread("scan.png"), tolerance=10)  # drop the white margin
 mask = cv.inRange(cv.toGray(scan), 0, 100)  # dark ink; toGray works whatever the input is
 mask = cv.fillHoles(cv.removeSmallObjects(mask, minArea=30))
-for contour in cv.findContoursEx(mask, minArea=500)[:3]:  # the 3 largest shapes
-    cv.drawLabel(scan, cv.boundingRect(contour), f"{cv.contourArea(contour):.0f} px", (0, 160, 255))
+contours = cv.findContoursEx(mask, minArea=500)  # largest first
+round_ones = cv.filterContours(contours, minCircularity=0.8)  # by area, aspect ratio, solidity, ...
+for i, contour in enumerate(cv.sortContours(round_ones, "left-to-right")):
+    stats = cv.contourStats(contour)  # area, perimeter, rect, center, solidity, circularity, ...
+    cv.drawLabel(scan, stats.rect, f"{i}: {stats.area:.0f} px", (0, 160, 255))
+    cv.imwriteEx(f"out/piece_{i}.png", cv.cropContour(scan, contour, transparent=True), makeDirs=True)
+debug = cv.drawContoursEx(scan, contours, labels=True)  # each contour in its own color, numbered
 
 for x, y, w, h, score in cv.findTemplate(scan, cv.imread("logo.png"), threshold=0.9):
     print(f"logo at ({x}, {y}), score {score:.2f}")
@@ -302,6 +307,11 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `flattenAlpha(src, background=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
 | `findContoursEx(image, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE, minArea=0, sort=True)` | `cv.findContours` for any image, largest first, small ones dropped. |
 | `fillHoles(mask, maxHoleArea=None)`, `removeSmallObjects(mask, minArea)` | Mask clean-up. |
+| `contourStats(contour)` | Area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent diameter and orientation in one named tuple. |
+| `sortContours(contours, method="left-to-right")`, `filterContours(contours, minArea=0, ..., minCircularity=0)` | Reading order or size order; keep the shapes whose measurements are in range. |
+| `contoursToMask(contours, size)`, `cropContour(src, contour, margin=0, background=0, transparent=False)` | Contours back to a mask; crop one object with the outside blanked or transparent. |
+| `approxContour(contour, epsilon=0.02)`, `mergeContours(contours)` | `cv.approxPolyDP` with a relative tolerance; one hull around several pieces. |
+| `drawContoursEx(src, contours, labels=False)`, `boundingRects(contours)`, `asContour(points)` | Each contour in its own color with labels; all boxes as an `(N, 4)` array; points to an OpenCV contour. |
 | `findTemplate(src, templ, threshold=0.8, maxCount=None)` | `cv.matchTemplate` as a list of non-overlapping matches `(x, y, w, h, score)`. |
 | `resizeEx(src, width=None, height=None, interpolation=None)` | Resize keeping the aspect ratio; picks `INTER_AREA`/`INTER_LINEAR` automatically. |
 | `letterbox(src, size, color=0, interpolation=None)` | Fit into `(width, height)` keeping the aspect ratio and pad. Returns `(dst, scale, (left, top))`. |
