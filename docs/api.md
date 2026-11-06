@@ -39,6 +39,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.layout.mergeTiles
 
+::: cv2u.core.layout.mapTiles
+
 ### Regions
 
 ::: cv2u.core.roi.cropEx
@@ -108,6 +110,10 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgcodecs.files.imwriteEx
 
 ::: cv2u.imgcodecs.files.listImages
+
+::: cv2u.imgcodecs.files.imreadAll
+
+::: cv2u.imgcodecs.files.imwriteAll
 
 ::: cv2u.imgcodecs.urlread.urlread
 

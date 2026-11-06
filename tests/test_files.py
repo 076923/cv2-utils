@@ -63,3 +63,39 @@ def test_imwriteEx_unknown_extension_raises_like_imwrite(tmp_path, bgr):
         cv.imwrite(str(tmp_path / "a.xyz"), bgr)
     with pytest.raises(cv2.error):
         cv.imwriteEx(tmp_path / "a.xyz", bgr)
+
+
+# --- imreadAll / imwriteAll -------------------------------------------------------------------
+
+
+def test_imwriteAll_imreadAll_roundtrip(tmp_path, bgr):
+    images = [bgr, bgr[::-1], bgr[:, ::-1]]
+    paths = [tmp_path / "사진" / f"img{i}.png" for i in range(3)]
+    assert cv.imwriteAll(paths, images, makeDirs=True) == [True, True, True]
+    back = cv.imreadAll(paths)
+    assert len(back) == 3
+    for a, b in zip(back, images, strict=True):
+        np.testing.assert_array_equal(a, b)
+    back_gray = cv.imreadAll(cv.listImages(tmp_path / "사진"), cv.IMREAD_GRAYSCALE)
+    assert all(g.ndim == 2 for g in back_gray)
+
+
+def test_imreadAll_strict_names_the_file(tmp_path, bgr):
+    good = tmp_path / "a.png"
+    assert cv.imwriteEx(good, bgr)
+    missing = tmp_path / "없음.png"
+    with pytest.raises(OSError, match=r"없음.png"):
+        cv.imreadAll([good, missing])
+    lenient = cv.imreadAll([good, missing], strict=False)
+    assert lenient[1] is None
+    np.testing.assert_array_equal(lenient[0], bgr)
+
+
+def test_imwriteAll_validation_and_lenient_mode(tmp_path, bgr):
+    with pytest.raises(ValueError, match="same length"):
+        cv.imwriteAll([tmp_path / "a.png"], [bgr, bgr])
+    bad = tmp_path / "없는 폴더" / "a.png"
+    with pytest.raises(OSError, match=r"a.png"):
+        cv.imwriteAll([bad], [bgr])
+    assert cv.imwriteAll([bad, tmp_path / "b.png"], [bgr, bgr], strict=False) == [False, True]
+    assert cv.imwriteAll([], []) == []

@@ -4,6 +4,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-07
+
+3 new APIs (132 -> 135), and the hot paths measured.
+
+### Added
+
+- `mapTiles` (`core`): run a function over a large image tile by tile and merge the results (`splitTiles`, the
+  function, `mergeTiles`), with an optional progress callback.
+- `imreadAll` and `imwriteAll` (`imgcodecs`): read or write many files; an unreadable file raises `OSError` with
+  its name, or gives `None` / `False` with `strict=False`.
+- `toPillow` accepts every single-channel dtype Pillow has a mode for: `uint16` (`"I;16"`), `int32` (`"I"`),
+  `float32` (`"F"`), `bool` (`"1"`), and 2-channel gray + alpha (`"LA"`); all round-trip through `fromPillow`.
+- Benchmarks (`benchmarks/`, `pytest benchmarks`): timings of the most used functions with pytest-benchmark, and
+  regression guards that compare each wrapper with the plain OpenCV call it wraps (`test_overhead.py`). CI runs
+  them on every pull request.
+
+### Changed
+
+- `nms` uses OpenCV's C++ non-maximum suppression (`cv.dnn.NMSBoxes`) for the overlap test: about 20x faster on
+  1000 boxes. The result is unchanged (stable score order, `scoreThreshold` inclusive, empty array when nothing
+  survives). The NumPy implementation remains as the fallback for builds without the `dnn` module.
+- `overlayMask` blends with `cv.addWeighted` and `cv.copyTo` instead of NumPy fancy indexing: about 8x faster on a
+  1080p image with a large mask.
+- `mergeTiles` places the tiles directly when they do not overlap and accumulates in `float32` for 8- and 16-bit
+  tiles (`float64` for wider dtypes): 2-4x faster.
+- `findContoursEx` no longer measures every contour when `sort=False` and `minArea=0`.
+
+### Fixed
+
+- `fromPillow` returned 8-bit BGR for big-endian or native 16-bit grayscale (`"I;16B"`, `"I;16L"`, `"I;16N"`),
+  silently losing precision; they now give native `uint16`. Premultiplied-alpha images (`"RGBa"`, `"La"`) keep
+  their alpha channel as BGRA instead of raising or dropping it.
+- `toPillow` raised an OpenCV error on empty images; it now raises `ValueError`.
+
 ## [0.3.0] - 2026-11-06
 
 32 new APIs (100 -> 132).
@@ -178,6 +212,7 @@ First official release.
 - Releases are published from GitHub Actions with PyPI trusted publishing and digital attestations.
 - `SECURITY.md`, `CODE_OF_CONDUCT.md` and `CITATION.cff`.
 
+[0.4.0]: https://github.com/076923/cv2-utils/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/076923/cv2-utils/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/076923/cv2-utils/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/076923/cv2-utils/compare/v0.1.0...v0.2.0

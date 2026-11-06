@@ -1,15 +1,15 @@
 """Image layout: padding to a size or multiple, and splitting into overlapping tiles."""
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import cv2
 import numpy as np
 
-from .._validate import check_color
+from .._validate import check_color, check_image_not_empty
 
-__all__ = ["mergeTiles", "padToMultiple", "padToSize", "splitTiles"]
+__all__ = ["mapTiles", "mergeTiles", "padToMultiple", "padToSize", "splitTiles"]
 
 Color = float | Sequence[float]
 
@@ -122,16 +122,66 @@ def mergeTiles(tiles: Sequence[tuple[np.ndarray, tuple[int, int]]], size: tuple[
     width, height = size
     first = tiles[0][0]
     shape = (height, width, *first.shape[2:])
-    total = np.zeros(shape, np.float64)
-    count = np.zeros((height, width), np.float64)
+    count = np.zeros((height, width), np.uint16)
     for tile, (x, y) in tiles:
-        h, w = tile.shape[:2]
-        h, w = min(h, height - y), min(w, width - x)
+        count[y : y + tile.shape[0], x : x + tile.shape[1]] += 1
+    if int(np.max(count)) <= 1:  # no overlaps: just place the tiles, no averaging pass over the whole image
+        out = np.zeros(shape, first.dtype)
+        for tile, (x, y) in tiles:
+            h, w = min(tile.shape[0], height - y), min(tile.shape[1], width - x)
+            out[y : y + h, x : x + w] = tile[:h, :w]
+        return out
+    # float32 holds a sum of 8- or 16-bit tiles exactly; 32-bit and float64 tiles get a float64 accumulator.
+    acc_dtype = np.float32 if first.dtype.itemsize <= 2 else np.float64
+    total = np.zeros(shape, acc_dtype)
+    for tile, (x, y) in tiles:
+        h, w = min(tile.shape[0], height - y), min(tile.shape[1], width - x)
         total[y : y + h, x : x + w] += tile[:h, :w]
-        count[y : y + h, x : x + w] += 1
-    divisor = np.maximum(count, 1)
+    divisor = np.maximum(count, 1).astype(acc_dtype)
     averaged = total / (divisor[..., None] if total.ndim == 3 else divisor)
     if np.issubdtype(first.dtype, np.integer):
         info = np.iinfo(first.dtype)
         averaged = np.clip(np.rint(averaged), info.min, info.max)
-    return averaged.astype(first.dtype)
+    merged: np.ndarray = averaged.astype(first.dtype)
+    return merged
+
+
+def mapTiles(
+    src: np.ndarray,
+    tileSize: tuple[int, int],
+    func: Callable[[np.ndarray], np.ndarray],
+    overlap: int = 0,
+    progress: Callable[[int, int], None] | None = None,
+) -> np.ndarray:
+    """Run a function over an image tile by tile and merge the results (split, ``func`` each tile, merge).
+
+    The usual way to apply a model with a fixed input size, or a memory-hungry filter, to an image that is too large
+    for it. ``func`` gets each tile (a view of ``src``) and must return an image of the same width and height; it may
+    change the channel count and dtype, so a BGR image can be mapped to a one-channel mask or a float heat map.
+
+    Args:
+        src: Image to process.
+        tileSize: Tile size as ``(width, height)``.
+        func: Called once per tile with the tile; returns the processed tile.
+        overlap: Pixels shared by neighboring tiles; the overlaps are averaged when merging, which hides tile seams.
+        progress: Optional callback ``progress(done, total)`` called after each tile.
+
+    Returns:
+        The processed image, the size of ``src``, with the channels and dtype ``func`` returned.
+
+    Raises:
+        ValueError: If ``src`` is empty, ``tileSize`` or ``overlap`` is invalid (see :func:`splitTiles`), or
+            ``func`` returns a tile of a different size.
+    """
+    check_image_not_empty("src", src)
+    tiles = splitTiles(src, tileSize, overlap)
+    results = []
+    for i, (tile, origin) in enumerate(tiles):
+        out = np.asarray(func(tile))
+        if out.shape[:2] != tile.shape[:2]:
+            raise ValueError(f"func must return a tile of the same size, got {out.shape[:2]} for {tile.shape[:2]}")
+        results.append((out, origin))
+        if progress is not None:
+            progress(i + 1, len(tiles))
+    merged: np.ndarray = mergeTiles(results, (src.shape[1], src.shape[0]))
+    return merged

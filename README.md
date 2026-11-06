@@ -133,6 +133,8 @@ boxes = cv.clipBoxes(cv.expandBoxes(boxes, ratio=0.1), (img.shape[1], img.shape[
 cv.drawBoxes(img, boxes, labels=[f"{s:.2f}" for s in scores[keep]])  # one color per box
 
 mask = cv.morphology(cv.binarize(img, "adaptive", invert=True), "open", 5)  # dark ink, speckles removed
+heat = cv.mapTiles(img, (512, 512), run_model, overlap=32)  # a fixed-input model over a big image, seams averaged
+images = cv.imreadAll(cv.listImages("photos/"))  # a folder in natural order; a bad file raises with its name
 lines = cv.findLines(img, minLength=100)  # (N, 4) segments, longest first
 aligned, M = cv.alignImages(cv.imread("scan.png"), cv.imread("template.png"))  # feature match + RANSAC + warp
 ```
@@ -293,6 +295,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `cropToContent(src, background=None, tolerance=0, margin=0)` | Trim a uniform border (scan margins, black bars). |
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
 | `splitTiles(src, tileSize, overlap=0)`, `mergeTiles(tiles, size)` | Split a large image into full-size tiles and merge processed tiles back (overlaps averaged). |
+| `mapTiles(src, tileSize, func, overlap=0, progress=None)` | Run a function (e.g. a model) over a large image tile by tile and merge the results. |
 
 ### imgcodecs
 
@@ -301,8 +304,9 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `imreadEx(filename, flags=cv.IMREAD_COLOR)` | `cv.imread` that also works with non-ASCII (e.g. Korean) paths on Windows. |
 | `imwriteEx(filename, img, params=(), makeDirs=False)` | `cv.imwrite` that also works with non-ASCII paths on Windows, and can create missing folders. |
 | `listImages(path, recursive=False)` | The image files in a folder, in natural order (`img2` before `img10`). |
+| `imreadAll(filenames, flags=cv.IMREAD_COLOR, strict=True)`, `imwriteAll(filenames, images, params=(), makeDirs=False, strict=True)` | Read or write many files; unreadable files raise with the file name (or give `None`). |
 | `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None, maxBytes=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
-| `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order (also palette, CMYK and transparent images). |
+| `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order. Every Pillow mode is accepted; 16-bit, `int32`, `float32` and `bool` images round-trip unchanged. |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
 
 ### imgproc

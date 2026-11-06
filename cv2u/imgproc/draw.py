@@ -154,17 +154,19 @@ def overlayMask(src: np.ndarray, mask: np.ndarray, color: Color = (0, 0, 255), a
     if not 0.0 <= alpha <= 1.0:
         raise ValueError(f"alpha must be between 0 and 1, got {alpha}")
 
-    dst = src.copy()
-    selected = mask.astype(bool)
     channels = _channels(src)
-    tint = np.array([_luminance(color)] if channels == 1 else _bgr(color), dtype=np.float32)
-
-    pixels = dst[selected]  # (N,) for grayscale, (N, C) for color
+    # Blend the whole image with a flat color layer (C++), then copy the masked pixels over: much faster than
+    # gathering and scattering the selected pixels with NumPy fancy indexing on large masks.
+    layer = np.empty_like(src)
     if channels == 1:
-        pixels = pixels.reshape(-1, 1)
-    blended = pixels[:, : tint.size].astype(np.float32) * (1 - alpha) + tint * alpha
-    pixels[:, : tint.size] = np.clip(np.rint(blended), 0, 255).astype(np.uint8)
-    dst[selected] = pixels.reshape(dst[selected].shape)
+        layer[...] = _luminance(color)
+    else:
+        layer[..., :3] = _bgr(color)
+        if channels == 4:
+            layer[..., 3] = src[..., 3]  # the alpha channel is not tinted
+    blended = cv2.addWeighted(src, 1 - alpha, layer, alpha, 0)
+    selected = np.ascontiguousarray(mask != 0).view(np.uint8)
+    dst: np.ndarray = cv2.copyTo(blended, selected, src.copy())
     return dst
 
 

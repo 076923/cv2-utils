@@ -24,7 +24,7 @@ Never re-implement something OpenCV already does well.
 | `autoCanny` | `cv.Canny` needs two hand-tuned thresholds for every image. |
 | `readFrames`, `writeVideo`, `videoInfo` | `cv.VideoCapture`/`cv.VideoWriter` need a read loop, `release()`, fourcc codes and many `get()` calls. |
 | `imshowInline`, `imshowEx` | `cv.imshow` does not work in Jupyter, and shows large images cropped by the screen. |
-| `toPillow`, `fromPillow` | Converting to/from Pillow needs channel reordering, and `np.asarray` gets palette and CMYK images wrong. |
+| `toPillow`, `fromPillow` | Converting to/from Pillow needs channel reordering, and `np.asarray` gets palette, CMYK, premultiplied-alpha and big-endian 16-bit images wrong. |
 | `imencodeBase64`, `imdecodeBase64` | Web APIs exchange images as base64 or data URIs; OpenCV only encodes to bytes. |
 | `drawLabel`, `overlayMask` | A detector-style labeled box or a translucent mask takes `getTextSize` math and blending code. |
 | `cropEx` | Slicing with boxes that extend outside the image silently returns wrong or empty regions. |
@@ -61,7 +61,8 @@ Never re-implement something OpenCV already does well.
 | `maskBoundingRect`, `applyMask`, `centerCrop` | `cv.boundingRect(cv.findNonZero(mask))` fails on empty or color masks; `cv.bitwise_and` with a mask only gives black; a center crop is index arithmetic. |
 | `drawBoxes`, `drawPoints`, `drawGrid`, `distinctColors` | Drawing many detections or keypoints in distinct colors, with labels, is a loop everyone writes; OpenCV has no palette. |
 | `pixelate`, `drawRoundedRectangle` | Mosaic anonymization and rounded boxes take resize and arc arithmetic. |
-| `listImages` | Collecting the image files of a folder (in natural order) is glob and sort boilerplate. |
+| `listImages`, `imreadAll`, `imwriteAll` | Collecting the image files of a folder (in natural order) is glob and sort boilerplate; `cv.imread` returns `None` silently, so a batch loop needs its own error handling. |
+| `mapTiles` | Running a fixed-input model over a large image is split, loop, merge and seam averaging every time. |
 | `readFrameAt` | Reading one frame means open, seek, read and release. |
 | `putTextEx` | `cv.putText` only has the Hershey fonts, which cover ASCII only. |
 | `urlread` | `cv.imread` cannot read from a URL. |

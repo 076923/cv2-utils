@@ -91,6 +91,45 @@ jobs:
           name: dist
           path: dist/
 
+  # Performance regression guards (wrapper vs. the OpenCV call it wraps; these fail) plus timings compared with the
+  # last run on main, restored from the cache, for the log only: runner speed varies too much to fail on them.
+  benchmark:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Install wheel
+        run: |
+          wheel=$(ls dist/*.whl)
+          pip install "${wheel}[headless,cluster]" "pytest>=8" "pytest-benchmark>=5"
+      - name: Restore the last baseline
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .benchmarks
+          key: benchmarks-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: benchmarks-${{ runner.os }}-
+      - name: Benchmark
+        run: >
+          pytest benchmarks --benchmark-autosave --benchmark-compare
+          --benchmark-columns=min,mean,ops --benchmark-sort=name
+      - name: Save as the new baseline
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .benchmarks
+          key: benchmarks-${{ runner.os }}-${{ github.run_id }}
+
   # Tests run against the built wheel, not the source tree.
   # `pytest` (not `python -m pytest`) with --import-mode=importlib keeps the checkout off sys.path.
   test:

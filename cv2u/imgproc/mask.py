@@ -113,6 +113,8 @@ def findContoursEx(
     fg = _foreground(image)
     contours: Sequence[np.ndarray]
     contours, _ = cv2.findContours(fg, mode, method)
+    if not sort and minArea <= 0:
+        return list(contours)  # nothing to measure
     items = [(c, cv2.contourArea(c)) for c in contours]
     items = [(c, a) for c, a in items if a >= minArea]
     if sort:

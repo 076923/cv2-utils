@@ -28,6 +28,7 @@ coverage.xml
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
+.benchmarks/
 
 # Environment
 .env
