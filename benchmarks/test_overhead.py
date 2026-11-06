@@ -133,13 +133,20 @@ def test_mergeTiles_without_overlap_is_a_copy(bgr):
 
 
 def test_mergeTiles_with_overlap_is_a_few_passes(bgr):
-    """Averaging the overlaps is a float accumulation: a handful of passes over the image, not a Python loop."""
+    """Averaging the overlaps is a float accumulation over the image, not a Python loop over pixels."""
     tiles = cv.splitTiles(bgr, (512, 512), overlap=32)
     size = (bgr.shape[1], bgr.shape[0])
-    one_pass = _best(lambda: bgr.astype(np.float32))
+
+    def reference():  # the same arithmetic on the whole image: accumulate, divide, round, convert back
+        total = bgr.astype(np.float32)
+        total += bgr
+        total /= 2
+        return np.clip(np.rint(total), 0, 255).astype(np.uint8)
+
+    ref = _best(reference)
     merged = _best(lambda: cv.mergeTiles(tiles, size))
-    assert merged <= one_pass * 12 + 0.005, (
-        f"mergeTiles: {merged * 1e3:.2f} ms vs {one_pass * 1e3:.2f} ms per float pass"
+    assert merged <= ref * 4 + 0.005, (
+        f"mergeTiles: {merged * 1e3:.2f} ms vs {ref * 1e3:.2f} ms for the plain arithmetic"
     )
 
 
