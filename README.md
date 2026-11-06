@@ -274,7 +274,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `imreadEx(filename, flags=cv.IMREAD_COLOR)` | `cv.imread` that also works with non-ASCII (e.g. Korean) paths on Windows. |
 | `imwriteEx(filename, img, params=(), makeDirs=False)` | `cv.imwrite` that also works with non-ASCII paths on Windows, and can create missing folders. |
 | `listImages(path, recursive=False)` | The image files in a folder, in natural order (`img2` before `img10`). |
-| `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
+| `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None, maxBytes=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
 | `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order (also palette, CMYK and transparent images). |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
 
