@@ -1,5 +1,6 @@
 from .adjust import adjustBrightnessContrast, adjustHSV, autoContrast, colorTransfer, matchHistograms, whiteBalance
-from .color import bgrToHex, flattenAlpha, hexToBGR, toBGR, toBGRA, toGray
+from .binary import binarize, morphology
+from .color import bgrToHex, distinctColors, flattenAlpha, hexToBGR, toBGR, toBGRA, toGray
 from .contour import (
     ContourStats,
     approxContour,
@@ -13,11 +14,32 @@ from .contour import (
     mergeContours,
     sortContours,
 )
-from .draw import drawDashedLine, drawDashedRectangle, drawHistogram, drawLabel, drawRoundedRectangle, overlayMask
+from .detect import detectBlobs, findCircles, findLines
+from .draw import (
+    drawBoxes,
+    drawDashedLine,
+    drawDashedRectangle,
+    drawGrid,
+    drawHistogram,
+    drawLabel,
+    drawPoints,
+    drawRoundedRectangle,
+    overlayMask,
+)
 from .edges import autoCanny
 from .enhance import equalizeHistEx, pixelate, unsharpMask
+from .features import FeatureMatches, alignImages, matchFeatures
 from .geometry import cropRotatedRect, deskew, fourPointTransform, transformPoints, translate
-from .mask import cutout, fillHoles, findContoursEx, largestComponent, removeSmallObjects, skeletonize
+from .mask import (
+    applyMask,
+    cutout,
+    fillHoles,
+    findContoursEx,
+    largestComponent,
+    maskBoundingRect,
+    removeSmallObjects,
+    skeletonize,
+)
 from .puttext import putTextEx
 from .quality import diffMask, hashDistance, imageHash, sharpnessScore, ssim
 from .resize import letterbox, resizeEx
@@ -25,13 +47,17 @@ from .template import findTemplate
 
 __all__ = [
     "ContourStats",
+    "FeatureMatches",
     "adjustBrightnessContrast",
     "adjustHSV",
+    "alignImages",
+    "applyMask",
     "approxContour",
     "asContour",
     "autoCanny",
     "autoContrast",
     "bgrToHex",
+    "binarize",
     "boundingRects",
     "colorTransfer",
     "contourStats",
@@ -40,17 +66,24 @@ __all__ = [
     "cropRotatedRect",
     "cutout",
     "deskew",
+    "detectBlobs",
     "diffMask",
+    "distinctColors",
+    "drawBoxes",
     "drawContoursEx",
     "drawDashedLine",
     "drawDashedRectangle",
+    "drawGrid",
     "drawHistogram",
     "drawLabel",
+    "drawPoints",
     "drawRoundedRectangle",
     "equalizeHistEx",
     "fillHoles",
     "filterContours",
+    "findCircles",
     "findContoursEx",
+    "findLines",
     "findTemplate",
     "flattenAlpha",
     "fourPointTransform",
@@ -59,8 +92,11 @@ __all__ = [
     "imageHash",
     "largestComponent",
     "letterbox",
+    "maskBoundingRect",
+    "matchFeatures",
     "matchHistograms",
     "mergeContours",
+    "morphology",
     "overlayMask",
     "pixelate",
     "putTextEx",

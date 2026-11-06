@@ -8,7 +8,15 @@ import numpy as np
 
 from .._validate import check_color, check_image_not_empty
 
-__all__ = ["bgrToHex", "flattenAlpha", "hexToBGR", "toBGR", "toBGRA", "toGray"]
+__all__ = [
+    "bgrToHex",
+    "distinctColors",
+    "flattenAlpha",
+    "hexToBGR",
+    "toBGR",
+    "toBGRA",
+    "toGray",
+]
 
 
 def _channels(src: np.ndarray) -> int:
@@ -143,3 +151,51 @@ def flattenAlpha(src: np.ndarray, background: float | Sequence[float] | np.ndarr
         out = np.clip(np.rint(out), 0, peak)
     flat: np.ndarray = out.astype(src.dtype)
     return flat
+
+
+def distinctColors(count: int, seed: int | None = None) -> list[tuple[int, int, int]]:
+    """``count`` BGR colors that are easy to tell apart, for drawing classes, tracks or clusters.
+
+    The first 12 are a fixed palette (red, green, blue, yellow, magenta, cyan, ...); further colors step around
+    the hue circle by the golden ratio, so the same ``count`` always gives the same colors and no two are equal.
+
+    Args:
+        count: How many colors.
+        seed: Shuffle the colors with this random seed; ``None`` keeps the fixed order.
+
+    Raises:
+        ValueError: If ``count`` is negative.
+    """
+    if count < 0:
+        raise ValueError(f"count must not be negative, got {count}")
+    colors = list(_PALETTE[:count])
+    index = 0
+    while len(colors) < count:
+        # Golden-ratio hue steps never repeat, with three brightness levels for more contrast between neighbors.
+        hue = (index * 0.618033988749895) % 1.0
+        value = (255, 180, 120)[index % 3]
+        hsv = np.array([[[hue * 180, 255, value]]], dtype=np.uint8)
+        b, g, r = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0, 0]
+        color = (int(b), int(g), int(r))
+        if color not in colors:
+            colors.append(color)
+        index += 1
+    if seed is not None:
+        np.random.default_rng(seed).shuffle(colors)
+    return colors
+
+
+_PALETTE: list[tuple[int, int, int]] = [
+    (0, 0, 255),
+    (0, 255, 0),
+    (255, 0, 0),
+    (0, 255, 255),
+    (255, 0, 255),
+    (255, 255, 0),
+    (0, 128, 255),
+    (128, 0, 255),
+    (255, 128, 0),
+    (0, 255, 128),
+    (128, 255, 0),
+    (255, 0, 128),
+]

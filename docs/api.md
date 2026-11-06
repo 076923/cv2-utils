@@ -43,11 +43,25 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.roi.cropEx
 
+::: cv2u.core.roi.centerCrop
+
 ::: cv2u.core.roi.cropToContent
 
 ::: cv2u.core.roi.inRangeEx
 
 ::: cv2u.core.boxes.boxIoU
+
+::: cv2u.core.boxes.nms
+
+::: cv2u.core.boxes.xywhToXyxy
+
+::: cv2u.core.boxes.xyxyToXywh
+
+::: cv2u.core.boxes.clipBoxes
+
+::: cv2u.core.boxes.scaleBoxes
+
+::: cv2u.core.boxes.expandBoxes
 
 ### Combining images
 
@@ -121,6 +135,8 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.color.bgrToHex
 
+::: cv2u.imgproc.color.distinctColors
+
 ### Color adjustment
 
 ::: cv2u.imgproc.adjust.adjustBrightnessContrast
@@ -161,6 +177,14 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.mask.cutout
 
+::: cv2u.imgproc.mask.maskBoundingRect
+
+::: cv2u.imgproc.mask.applyMask
+
+::: cv2u.imgproc.binary.binarize
+
+::: cv2u.imgproc.binary.morphology
+
 ::: cv2u.imgproc.contour.contourStats
 
 ::: cv2u.imgproc.contour.ContourStats
@@ -183,9 +207,21 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.contour.asContour
 
-### Matching
+### Matching and detection
 
 ::: cv2u.imgproc.template.findTemplate
+
+::: cv2u.imgproc.features.matchFeatures
+
+::: cv2u.imgproc.features.FeatureMatches
+
+::: cv2u.imgproc.features.alignImages
+
+::: cv2u.imgproc.detect.findLines
+
+::: cv2u.imgproc.detect.findCircles
+
+::: cv2u.imgproc.detect.detectBlobs
 
 ### Geometry and filters
 
@@ -216,6 +252,12 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgproc.draw.drawLabel
 
 ::: cv2u.imgproc.draw.overlayMask
+
+::: cv2u.imgproc.draw.drawBoxes
+
+::: cv2u.imgproc.draw.drawPoints
+
+::: cv2u.imgproc.draw.drawGrid
 
 ::: cv2u.imgproc.draw.drawDashedLine
 
