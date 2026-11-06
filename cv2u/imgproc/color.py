@@ -6,13 +6,16 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .._validate import check_color, check_image_not_empty
+
 __all__ = ["bgrToHex", "flattenAlpha", "hexToBGR", "toBGR", "toBGRA", "toGray"]
 
 
 def _channels(src: np.ndarray) -> int:
-    channels = 1 if src.ndim == 2 else int(src.shape[2])
+    channels = 1 if src.ndim == 2 else int(src.shape[2]) if src.ndim == 3 else 0
     if channels not in (1, 3, 4):
         raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
+    check_image_not_empty("src", src)
     return channels
 
 
@@ -61,8 +64,10 @@ def toBGRA(src: np.ndarray, alpha: float | None = None) -> np.ndarray:
             65535 for 16-bit, 1.0 for float). For BGRA input, the existing alpha is kept unless this is given.
 
     Raises:
-        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+        ValueError: If ``src`` does not have 1, 3 or 4 channels, or ``alpha`` is not a finite number.
     """
+    if alpha is not None:
+        check_color("alpha", [alpha], src.dtype)
     channels = _channels(src)
     if channels == 4:
         out = src.copy()

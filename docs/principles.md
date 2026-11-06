@@ -35,6 +35,9 @@ Never re-implement something OpenCV already does well.
 | `toGray`, `toBGR`, `toBGRA` | `cv.cvtColor` raises an error when the image already has the target format. |
 | `findContoursEx` | `cv.findContours` rejects color images and returns the contours unsorted. |
 | `fillHoles`, `removeSmallObjects` | Basic mask clean-up has no OpenCV function. |
+| `contourStats`, `filterContours`, `sortContours` | OpenCV measures one property per call (`contourArea`, `arcLength`, `boundingRect`, `convexHull`...); "sort left to right" and "keep the round ones" are rewritten in every project. |
+| `contoursToMask`, `cropContour`, `drawContoursEx` | `cv.drawContours` needs an image, `-1`, a color and `cv.FILLED` to make a mask; cropping an object with its outside blanked, or drawing contours in distinct colors with labels, is bookkeeping. |
+| `approxContour`, `mergeContours`, `boundingRects`, `asContour` | `cv.approxPolyDP` takes an absolute tolerance; merging pieces, boxing every contour and the `(N, 1, 2)` `int32` layout are boilerplate. |
 | `findTemplate` | `cv.matchTemplate` returns a score map, not the matches. |
 | `cropToContent` | Trimming a uniform border takes thresholding and bounding-box code. |
 | `imwriteEx(..., makeDirs=True)` | `cv.imwrite` silently returns `False` when the folder does not exist. |
@@ -101,7 +104,9 @@ color quantization work without scikit-learn.
 - Every public function has type hints and a docstring. Type checkers and IDEs also see OpenCV's own signatures
   through cv2u. *(Enforced by mypy, pyright and a test.)*
 - Invalid input raises `ValueError` with a message that names the problem, instead of an internal NumPy or OpenCV
-  error.
+  error. Concretely: an empty image, a `NaN` or infinite number, a negative size or a color outside the image's dtype
+  range is rejected up front (helpers in `cv2u/_validate.py`); OpenCV flag values are passed through, as OpenCV
+  reports those itself. *(Enforced by `tests/test_validation.py`.)*
 
 ## 6. Change carefully
 

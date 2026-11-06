@@ -6,6 +6,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .._validate import check_color, check_image_not_empty
 from ..imgproc.resize import letterbox
 
 __all__ = ["hconcatEx", "montage", "overlayImage", "vconcatEx"]
@@ -23,7 +24,9 @@ def _as3d(img: np.ndarray) -> np.ndarray:
 
 def _fill_value(color: float | Sequence[float], channels: int) -> list[float]:
     if isinstance(color, (int, float)):
-        return [float(color)] * channels
+        values = [float(color)] * channels
+        check_color("color", values)
+        return values
     values = [float(c) for c in color]
     if channels == 1 and len(values) in (3, 4):
         b, g, r = values[:3]
@@ -32,6 +35,7 @@ def _fill_value(color: float | Sequence[float], channels: int) -> list[float]:
         values.append(255.0)  # opaque padding for BGRA images
     if len(values) != channels:
         raise ValueError(f"color must be a scalar or have {channels} values, got {color!r}")
+    check_color("color", values)
     return values
 
 
@@ -44,8 +48,9 @@ def _concat(images: Sequence[np.ndarray], axis: int, color: float | Sequence[flo
     if len(dtypes) != 1:
         raise ValueError(f"all images must have the same dtype, got {sorted(str(d) for d in dtypes)}")
     for img in images:
-        if _channels(img) not in (1, 3, 4):
+        if img.ndim not in (2, 3) or _channels(img) not in (1, 3, 4):
             raise ValueError(f"images must have 1, 3 or 4 channels, got shape {img.shape}")
+        check_image_not_empty("images", img)
 
     channels = max(_channels(img) for img in images)
     unified = [
@@ -53,7 +58,9 @@ def _concat(images: Sequence[np.ndarray], axis: int, color: float | Sequence[flo
         for img in images
     ]
     dtype = unified[0].dtype
-    fill = np.array(_fill_value(color, channels), dtype=dtype)
+    values = _fill_value(color, channels)
+    check_color("color", values, dtype)
+    fill = np.array(values, dtype=dtype)
 
     cross = 1 - axis  # the axis that is padded: height for hconcat, width for vconcat
     extent = max(img.shape[cross] for img in unified)
@@ -159,6 +166,8 @@ def overlayImage(
     """
     if src.dtype != np.uint8 or overlay.dtype != np.uint8:
         raise ValueError(f"src and overlay must be 8-bit (uint8), got {src.dtype} and {overlay.dtype}")
+    check_image_not_empty("src", src)
+    check_image_not_empty("overlay", overlay)
     for name, img in (("src", src), ("overlay", overlay)):
         if _channels(img) not in (1, 3, 4):
             raise ValueError(f"{name} must have 1, 3 or 4 channels, got shape {img.shape}")

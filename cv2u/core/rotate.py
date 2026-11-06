@@ -19,7 +19,14 @@ def rotateEx(
 
     The output canvas is enlarged so the whole rotated (and scaled) image fits.
     ``flags``, ``borderMode`` and ``borderValue`` are forwarded to ``cv.warpAffine``.
+
+    Raises:
+        ValueError: If ``angle`` is not finite or ``scale`` is not a positive finite number.
     """
+    if not math.isfinite(angle):
+        raise ValueError(f"angle must be finite, got {angle}")
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError(f"scale must be a positive finite number, got {scale}")
     height, width = src.shape[:2]
     center = (width / 2, height / 2)
     matrix = cv2.getRotationMatrix2D(center, angle, scale)

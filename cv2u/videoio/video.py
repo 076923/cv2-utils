@@ -1,3 +1,4 @@
+import math
 import os
 from collections.abc import Iterable, Iterator
 from itertools import chain
@@ -101,6 +102,15 @@ def _frames(cap: cv2.VideoCapture, step: int, start: int) -> Iterator[np.ndarray
         cap.release()
 
 
+def _frame_channels(frame: np.ndarray, index: int) -> int:
+    """1 for a grayscale frame, 3 for BGR; anything else (BGRA, float, ...) is rejected with a clear message."""
+    if frame.ndim == 2:
+        return 1
+    if frame.ndim == 3 and frame.shape[2] == 3:
+        return 3
+    raise ValueError(f"frame {index} must be grayscale (HxW) or BGR (HxWx3), got shape {frame.shape}")
+
+
 def writeVideo(
     filename: str | os.PathLike[str],
     frames: Iterable[np.ndarray],
@@ -123,12 +133,12 @@ def writeVideo(
         The number of frames written.
 
     Raises:
-        ValueError: If there are no frames, a frame has a different size or is not 8-bit, ``fps`` is not positive,
-            or no codec is known for the file extension.
+        ValueError: If there are no frames, a frame has a different size or channel count than the first one or
+            is not 8-bit grayscale/BGR, ``fps`` is not positive, or no codec is known for the file extension.
         OSError: If the video writer cannot be opened (for example, the codec is not available).
     """
     path = os.fspath(filename)
-    if fps <= 0:
+    if not math.isfinite(fps) or fps <= 0:
         raise ValueError(f"fps must be positive, got {fps}")
     extension = os.path.splitext(path)[1].lower()
     code = fourcc or _FOURCC_BY_EXTENSION.get(extension)
@@ -141,8 +151,9 @@ def writeVideo(
     first = next(iterator, None)
     if first is None:
         raise ValueError("frames must not be empty")
+    channels = _frame_channels(first, 0)
     height, width = first.shape[:2]
-    is_color = first.ndim == 3
+    is_color = channels == 3
 
     writer = cv2.VideoWriter(path, cv2.VideoWriter.fourcc(*code), fps, (width, height), is_color)
     if not writer.isOpened():
@@ -154,6 +165,8 @@ def writeVideo(
                 raise ValueError(f"frame {count} must be 8-bit (uint8), got {frame.dtype}")
             if frame.shape[:2] != (height, width):
                 raise ValueError(f"frame {count} has size {frame.shape[1]}x{frame.shape[0]}, expected {width}x{height}")
+            if _frame_channels(frame, count) != channels:
+                raise ValueError(f"frame {count} has {_frame_channels(frame, count)} channel(s), expected {channels}")
             writer.write(frame)
             count += 1
     finally:

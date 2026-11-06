@@ -3,6 +3,8 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .._validate import check_color, check_image_not_empty
+
 __all__ = ["letterbox", "resizeEx"]
 
 
@@ -33,6 +35,7 @@ def resizeEx(
     """
     if width is None and height is None:
         raise ValueError("give width, height or both")
+    check_image_not_empty("src", src)
     for name, value in (("width", width), ("height", height)):
         if value is not None and value <= 0:
             raise ValueError(f"{name} must be positive, got {value}")
@@ -75,11 +78,13 @@ def letterbox(
         in ``dst``.
 
     Raises:
-        ValueError: If ``size`` is not positive.
+        ValueError: If ``size`` is not positive, ``src`` is empty, or ``color`` is not finite.
     """
     out_w, out_h = size
     if out_w <= 0 or out_h <= 0:
         raise ValueError(f"size must be positive, got {size}")
+    check_image_not_empty("src", src)
+    check_color("color", [color] if isinstance(color, (int, float)) else list(color), src.dtype)
     h, w = src.shape[:2]
     scale = min(out_w / w, out_h / h)
     new_w, new_h = max(1, round(w * scale)), max(1, round(h * scale))

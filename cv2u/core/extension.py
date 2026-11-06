@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
+from .._validate import check_finite
+
 __all__ = [
     "DHEdge",
     "cartesianToPolar",
@@ -27,8 +29,7 @@ def gammaCorrection(src: np.ndarray, gamma: float = 1.0) -> np.ndarray:
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
-    if gamma <= 0:
-        raise ValueError(f"gamma must be positive, got {gamma}")
+    check_finite("gamma", gamma, positive=True)
     table = (np.arange(256) / 255.0) ** (1.0 / gamma) * 255
     dst: np.ndarray = cv2.LUT(src, np.clip(table, 0, 255).astype(np.uint8))
     return dst

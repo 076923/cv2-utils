@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from .._validate import check_finite, check_image_not_empty
+
 __all__ = ["equalizeHistEx", "pixelate", "unsharpMask"]
 
 
@@ -23,13 +25,16 @@ def equalizeHistEx(
         tileGridSize: CLAHE grid size, as ``(columns, rows)``.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit or has an unsupported channel count.
+        ValueError: If ``src`` is not 8-bit or is empty, has an unsupported channel count, or ``clipLimit`` is not
+            positive.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
-    channels = 1 if src.ndim == 2 else src.shape[2]
+    channels = 1 if src.ndim == 2 else src.shape[2] if src.ndim == 3 else 0
     if channels not in (1, 3, 4):
         raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
+    check_image_not_empty("src", src)
+    check_finite("clipLimit", clipLimit, positive=True)
 
     def equalize(gray: np.ndarray) -> np.ndarray:
         if clahe:
@@ -63,10 +68,9 @@ def unsharpMask(src: np.ndarray, sigma: float = 1.0, amount: float = 1.0, thresh
     Raises:
         ValueError: If ``sigma`` is not positive, or ``amount`` or ``threshold`` is negative.
     """
-    if sigma <= 0:
-        raise ValueError(f"sigma must be positive, got {sigma}")
-    if amount < 0:
-        raise ValueError(f"amount must not be negative, got {amount}")
+    check_image_not_empty("src", src)
+    check_finite("sigma", sigma, positive=True)
+    check_finite("amount", amount, nonnegative=True)
     if threshold < 0:
         raise ValueError(f"threshold must not be negative, got {threshold}")
     blurred = cv2.GaussianBlur(src, (0, 0), sigma)
@@ -96,6 +100,7 @@ def pixelate(src: np.ndarray, blockSize: int = 16, rect: tuple[int, int, int, in
     """
     if blockSize < 1:
         raise ValueError(f"blockSize must be positive, got {blockSize}")
+    check_image_not_empty("src", src)
     dst = src.copy()
     height, width = src.shape[:2]
     x, y, w, h = (0, 0, width, height) if rect is None else (int(v) for v in rect)

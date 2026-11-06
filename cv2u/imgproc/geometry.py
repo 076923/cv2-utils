@@ -47,13 +47,23 @@ def fourPointTransform(
     corners = np.asarray(pts, dtype=np.float32).reshape(-1, 2)
     if corners.shape != (4, 2):
         raise ValueError(f"pts must contain exactly 4 points, got {corners.shape[0]}")
+    if not np.all(np.isfinite(corners)):
+        raise ValueError("pts must be finite")
     tl, tr, br, bl = _order_corners(corners)
+    # Shoelace area of the ordered quad: 0 for collinear or duplicate points, which have no perspective transform.
+    quad = np.array([tl, tr, br, bl], dtype=np.float64)
+    x, y = quad[:, 0], quad[:, 1]
+    area = 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+    if area < 1e-3 or len(np.unique(quad, axis=0)) < 4:
+        raise ValueError("pts are degenerate: duplicate or collinear points do not form a quadrilateral")
 
     if size is None:
         width = round(max(math.dist(tl, tr), math.dist(bl, br)))
         height = round(max(math.dist(tl, bl), math.dist(tr, br)))
     else:
         width, height = size
+        if width < 1 or height < 1:
+            raise ValueError(f"size must be at least 1x1, got {width}x{height}")
     if width < 1 or height < 1:
         raise ValueError(f"the points span no area (output size {width}x{height})")
 

@@ -4,6 +4,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- Contours (`imgproc`), 11 new APIs (100 -> 111): the steps after `cv.findContours` that every project rewrites.
+  - `contourStats`: area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent
+    diameter and orientation as one `ContourStats` named tuple.
+  - `sortContours`: reading order (left-to-right, top-to-bottom, ...) or by area / perimeter.
+  - `filterContours`: keep the contours whose measurements fall within the given ranges.
+  - `contoursToMask`: contours back to a filled or outlined mask (the inverse of `findContoursEx`).
+  - `cropContour`: crop one object with the outside blanked, kept, or transparent (BGRA).
+  - `approxContour`: `cv.approxPolyDP` with the tolerance as a fraction of the perimeter.
+  - `mergeContours`: one convex hull around several pieces.
+  - `drawContoursEx`: each contour in its own color, optionally numbered or labeled at its centroid.
+  - `boundingRects`: every `cv.boundingRect` as an `(N, 4)` array, ready for `boxIoU`.
+  - `asContour`: any points to the `(N, 1, 2)` `int32` layout OpenCV wants.
+
+- `urlread(..., maxBytes=...)`: reject responses larger than a limit, from the `Content-Length` header when
+  present and otherwise while reading, so a large or hostile URL cannot fill memory.
+
+### Fixed
+
+- `writeVideo` silently dropped frames whose channel count differed from the first frame (the writer skipped
+  them but the returned count still included them), and accepted BGRA first frames that produced an empty video.
+  Every frame must now be grayscale or BGR and match the first one; anything else raises `ValueError`.
+- `rotateEx` with `scale` 0 or negative returned an unscaled image instead of failing; it now raises `ValueError`.
+- `fourPointTransform` accepted collinear or duplicate points (a singular transform and a garbage image) although
+  its documentation promised a `ValueError`; it now checks the area of the quadrilateral. A `size` smaller than
+  1x1 is rejected too.
+- `peakColors` crashed on an empty image or `sigma=nan` with an unrelated error; both raise `ValueError`.
+- Consistent input validation across the extensions (see docs/principles.md): empty images, `NaN` / infinite
+  parameters and colors outside the image's dtype range raise `ValueError` naming the argument, where they used
+  to fail with `IndexError`, `ZeroDivisionError`, `OverflowError`, `TypeError` or an OpenCV C++ assertion
+  (`adjustBrightnessContrast`, `adjustHSV`, `autoContrast`, `whiteBalance`, `cropToContent`, `fillHoles`,
+  `removeSmallObjects`, `largestComponent`, `findContoursEx`, `skeletonize`, `cutout`, `letterbox`, `resizeEx`,
+  `equalizeHistEx`, `unsharpMask`, `pixelate`, `ssim`, `diffMask`, `gammaCorrection`, `toGray`, `toBGR`,
+  `toBGRA`, `hconcatEx`, `vconcatEx`, `montage`, `overlayImage`, `padToSize`, `padToMultiple`).
+
 ## [0.2.1] - 2026-11-06
 
 ### Added
@@ -129,6 +167,7 @@ First official release.
 - Releases are published from GitHub Actions with PyPI trusted publishing and digital attestations.
 - `SECURITY.md`, `CODE_OF_CONDUCT.md` and `CITATION.cff`.
 
+[0.3.0]: https://github.com/076923/cv2-utils/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/076923/cv2-utils/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/076923/cv2-utils/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/076923/cv2-utils/releases/tag/v0.1.0

@@ -161,6 +161,28 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.mask.cutout
 
+::: cv2u.imgproc.contour.contourStats
+
+::: cv2u.imgproc.contour.ContourStats
+
+::: cv2u.imgproc.contour.sortContours
+
+::: cv2u.imgproc.contour.filterContours
+
+::: cv2u.imgproc.contour.contoursToMask
+
+::: cv2u.imgproc.contour.cropContour
+
+::: cv2u.imgproc.contour.approxContour
+
+::: cv2u.imgproc.contour.mergeContours
+
+::: cv2u.imgproc.contour.drawContoursEx
+
+::: cv2u.imgproc.contour.boundingRects
+
+::: cv2u.imgproc.contour.asContour
+
 ### Matching
 
 ::: cv2u.imgproc.template.findTemplate

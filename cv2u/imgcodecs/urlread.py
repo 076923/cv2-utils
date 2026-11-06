@@ -15,6 +15,7 @@ def urlread(
     flags: int = cv2.IMREAD_UNCHANGED,
     timeout: float | None = None,
     headers: Mapping[str, str] | None = None,
+    maxBytes: int | None = None,
 ) -> np.ndarray | None:
     """Download an image from ``url`` and decode it like ``cv.imread``.
 
@@ -24,14 +25,27 @@ def urlread(
         timeout: Timeout in seconds for the request. ``None`` uses the global default.
         headers: Extra HTTP headers, e.g. ``{"Authorization": "Bearer ..."}``. A ``User-Agent`` given here
             replaces the default one.
+        maxBytes: Largest response accepted, in bytes. Larger downloads stop early with a ``ValueError`` instead
+            of being held in memory. ``None`` accepts any size.
 
     Returns:
         The decoded image, or ``None`` if the data cannot be decoded (like ``cv.imread``).
 
     Raises:
         urllib.error.URLError: If the request fails (including HTTP errors).
+        ValueError: If the response is larger than ``maxBytes``.
     """
+    if maxBytes is not None and maxBytes < 1:
+        raise ValueError(f"maxBytes must be at least 1, got {maxBytes}")
     request = Request(url, headers={"User-Agent": _USER_AGENT, **(headers or {})})
     with urlopen(request, timeout=timeout) as response:
-        data = np.frombuffer(response.read(), dtype=np.uint8)
-    return cv2.imdecode(data, flags)
+        if maxBytes is None:
+            raw = response.read()
+        else:
+            declared = response.headers.get("Content-Length")
+            if declared is not None and declared.isdigit() and int(declared) > maxBytes:
+                raise ValueError(f"response is {declared} bytes, more than maxBytes={maxBytes}")
+            raw = response.read(maxBytes + 1)  # one extra byte tells a too-large body from an exact fit
+            if len(raw) > maxBytes:
+                raise ValueError(f"response is larger than maxBytes={maxBytes}")
+    return cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), flags)
