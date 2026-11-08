@@ -4,6 +4,63 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-11-08
+
+The first stable release: 162 new APIs (135 -> 297), two new subpackages (`cv2u.calib3d`, `cv2u.dnn`), and a one-time
+clean-up of the existing API (consistent names, signatures and validation). From 1.0 on, the public API follows
+semantic versioning and renames keep a deprecated alias (see [Design principles](docs/principles.md)).
+
+### Added
+
+- `VideoReader`, `VideoWriterEx` and `CameraStream`: context-manager/iterator capture with seeking, a lazily-opened writer that infers codec, size and color mode from the first frame, and a threaded latest-frame camera reader.
+- `FPSCounter`, `frameToTime`, `timeToFrame`, `formatTimestamp`: frame-rate measurement and frame/time conversions.
+- `extractFrames`, `trimVideo`, `concatVideos`, `resizeVideo`, `videoToGif`, `imagesToVideo`: video file editing utilities with Unicode-safe paths and automatic directory creation.
+- `detectScenes`, `sampleFrames`, `videoThumbnail`: scene-cut detection and evenly spaced frame sampling / contact sheets.
+- Data augmentation (`imgproc`): seeded noise, motion blur, vignette, JPEG artifacts, random erase, solarize and posterize (`addNoise`, `motionBlur`, `vignette`, `jpegArtifacts`, `randomErase`, `solarize`, `posterize`).
+- Seeded random transforms that keep detection boxes aligned: `randomCrop`, `randomFlip`, `randomRotate`, `randomScale`, `randomPerspective`; photometric `randomBrightnessContrast`, `randomHSV`, `randomBlur`.
+- Multi-image augmentations `mosaic` (YOLO-style 4-image mosaic with boxes), `mixup` and `cutMix` (both return the mixing weight `lam` for labels).
+- `maskToPolygons`, `polygonsToMask`, `boxesToPolygons`, `polygonsToBoxes`, `polygonArea`, `polygonIoU`, `maskIoU`: polygon annotations and overlap measures (`polygonIoU` rasterizes at a configurable resolution, so it works for concave polygons).
+- `rleEncode`, `rleDecode`: COCO uncompressed RLE (column-major, pycocotools-compatible) without a pycocotools dependency.
+- `boxesToYolo`, `yoloToBoxes`, `readYoloLabels`, `writeYoloLabels`: YOLO normalized rows and `.txt` label files on any path, with `makeDirs`.
+- `labelMapToColor`, `colorToLabelMap`, `instanceMasksToLabelMap`, `labelMapToMasks`, `drawSegmentation`, `drawPolygons`: label maps, instance masks and their visualization with distinct class colors.
+- `flipBoxes`, `flipPoints`, `flipPolygons`: flip annotations together with `cv.flip` (same `flipCode` semantics as `FLIP_MODE_*`).
+- `cv2u.dnn` subpackage (mirrors `cv.dnn`; every `cv2.dnn` name passes through): `loadModel`, `readClassNames`, `preprocessImage`, `inferImage`, `postprocessDetections`, `postprocessClassification`, `softmax`, `sigmoid`, `drawDetections`, and the `PreprocessInfo` / `Detections` named tuples for running detectors and classifiers end to end.
+- `heatmap`, `applyColorMapEx` and `colorBar`: colorize float maps of any size, overlay them on an image and draw a legend strip.
+- `drawArrow` (pixel-sized heads, both ends), `drawRotatedRect`/`drawRotatedBoxes` (from `cv.minAreaRect`), `drawPolygon` (float points, translucent fill), `drawSkeleton` with `COCO_SKELETON`, `drawTrajectory` (fading tracks) and `drawCrosshair`.
+- HUD helpers `drawTextBlock`, `drawFPS`, `drawProgressBar` and `drawLegend` with translucent panels.
+- `compareImages` (side, vertical, split, blend, diff), `labeledMontage` (titled grid) and `blendImages` (weighted average of N images).
+- `imageStats`/`ImageStats`, `isGrayscale`, `isBlank`, `isBlurry`, `brightnessScore`, `contrastScore`, `exposureScore`, `entropy`, `estimateNoise` (Immerkær) and `colorfulness` (Hasler & Süsstrunk): one-call image statistics and quality checks for any gray/BGR/BGRA image and dtype.
+- `mse`, `mae`, `histogramEx` (per-channel `(channels, bins)` histograms), `histogramCompare` (normalized HSV/BGR/gray histograms through `cv.compareHist`), `dominantHue` and `meanColor`.
+- Document and OCR preprocessing (`imgproc`): `removeShadow`, `enhanceDocument`, `sauvolaThreshold`, `niblackThreshold` (integral-image local thresholds, no contrib needed), `removeSpeckles`, `removeLines`.
+- Page layout: `detectTextLines`, `detectTextBlocks`, `removeBorder`, `estimateSkew` (the angle behind `deskew`), `detectPage` and `scanDocument` (detect + `fourPointTransform` + enhance).
+- `cv2u.calib3d` subpackage: `CameraCalibration`, `makeChessboard`, `objectPointsGrid`, `findChessboardEx`, `calibrateCameraEx`, `reprojectionErrors`, `undistortEx`, `saveCalibration`, `loadCalibration` for chessboard camera calibration, undistortion and a JSON calibration file.
+- `stitchImages` (`cv.Stitcher` with exceptions and status names) and `stitchPair` (homography stitch on an enlarged canvas).
+- `imageInfo`, `ImageInfo`, `exifOrientation`: image file header metadata (size, channels, mode, format, file size, EXIF orientation) without decoding.
+- `imreadOriented`, `imreadResized`: read with the EXIF orientation applied for every flag and format, and read-and-resize with `IMREAD_REDUCED_*` fast paths for 1/2, 1/4, 1/8 scales.
+- `imencodeEx`, `imdecodeEx`, `convertImageFormat`: encode to `bytes` with errors raised, decode from any bytes-like object, and convert files between formats (alpha flattened for JPEG, orientation applied, `quality`).
+- Color arithmetic (`imgproc`): `CSS_COLORS`, `lightenColor`, `darkenColor`, `blendColors`, `complementaryColor`, `invertColor`, `colorDistance`, `nearestColor`, `colorName`, `textColorFor`, `randomColors`, `gradientPalette`, `colormapPalette`.
+- Point sets (`core`): `rotatePoints`, `scalePoints`, `translatePoints`, `flipPoints`, `normalizePoints`, `denormalizePoints`, `clipPoints`, `pointsBoundingBox`, `distancePoints`, `nearestPoints`, `orderPoints`, `polygonCentroid`, `angleBetween`, `lineIntersection`, `pointLineDistance`.
+- `Clusters` and `Letterbox` named tuples (see Changed).
+
+### Changed
+- `DBSCAN` is now `dbscanColors(src, eps, minSamples=4)` and returns `Clusters(maps, centers)` like the other clusterers; labels are `0 .. k-1` with noise `-1` (was `(maps, labels)` with noise `0` and clusters from `1`). `clusterPoints` follows the same convention (noise `-1`, `int32` labels).
+- `drawDBSCAN(src, maps, labels)` is now `drawClusters(src, maps)`: returns a new image, accepts gray or BGR input; noise pixels keep their original color.
+- `kmeansColors`, `meanShiftColors`, `peakColors` and `dbscanColors` return a `Clusters(maps, centers)` named tuple, and `letterbox` returns `Letterbox(image, scale, offset)`; tuple unpacking keeps working.
+- Renamed: `DHEdge` -> `boldEdges`, `cropEx` -> `cropRect`, `centerCrop` -> `cropCenter`, `detectBlobs` -> `findBlobs`, `urlread` -> `imreadUrl` (now defaults to `IMREAD_COLOR` like `cv.imread`).
+- Renamed parameters: `matchFeatures(src, reference, ..., mask, referenceMask)` (was `dst`, `dstMask`); `overlayImage(alpha=)` (was `opacity`); `cropContour`, `applyMask` and `flattenAlpha` take `fill=` (was `background`); `expandBoxes(margin=)` (was `pixels`).
+- `imcolor(size, color, channels=3)` and `makeGradient(size, ...)` take `size=(width, height)` like `cv.resize` instead of a NumPy shape; `channels=1` gives a 2-D image.
+- `putTextEx(img, ...)` and `drawContoursEx(img, contours, colors=None, labels=False, thickness=2, fontScale=0.5)` draw in place and return `img` like every other `draw*` function (they returned a BGR copy); grayscale images stay grayscale.
+- `findTemplate` returns a float64 `(N, 5)` array `[x, y, w, h, score]` instead of a list of tuples, so the result feeds `nms` and `drawBoxes` directly.
+- `cropRect` raises `ValueError` when the box lies entirely outside the image instead of returning an empty array.
+- `cropRotatedRect` defaults to `borderMode=cv.BORDER_CONSTANT` like `rotateEx` and `translate`; `rotateEx` has explicit defaults (`INTER_LINEAR`, `BORDER_CONSTANT`, `0`).
+- `drawRoundedRectangle(img, rect, color, thickness=1, radius=8, lineType=...)`: `radius` comes before `lineType`. `drawPoints` default `fontScale` is 0.5.
+- Boolean switches are keyword-only: `padToSize(center=)`, `scaleBoxes(inverse=)`, `equalizeHistEx(clahe=)`, `binarize(invert=)`, `autoContrast(perChannel=)`, `findBlobs(dark=)`, `findContoursEx(sort=)`, `cropContour(transparent=)`, `drawHistogram(log=)`, `imencodeBase64(dataUri=)`, `imreadAll(strict=)`, `imwriteAll(strict=)`.
+- `autoCanny` accepts 16-bit and float images (stretched to 8 bits) instead of raising; `findLines` does the same. `nms` rejects `iouThreshold > 1`. `minArea` is a `float` everywhere.
+- Validation is now uniform: every function rejects empty images, and every numeric parameter rejects NaN/infinity and out-of-range values, with a `ValueError` naming the argument (about 50 functions gained checks). Every public function has complete `Args`/`Returns`/`Raises` docstrings.
+
+### Removed
+- `DBSCAN`, `drawDBSCAN`, `DHEdge`, `cropEx`, `centerCrop`, `detectBlobs` and `urlread` (renamed above). 1.0.0 is a one-time reset without deprecated aliases; from 1.0 on, renames keep a deprecated alias for at least one minor release.
+
 ## [0.4.0] - 2026-11-07
 
 3 new APIs (132 -> 135), and the hot paths measured.

@@ -1,5 +1,5 @@
 ---
-description: "API reference for cv2u: imreadEx, imwriteEx, toPillow, imencodeBase64, readFrames, writeVideo, imshowInline, resizeEx, letterbox, drawLabel, overlayMask, cropRect, montage, equalizeHistEx and more."
+description: "API reference for cv2u: VideoReader, augmentation, YOLO and COCO annotations, dnn inference, calibration, document scanning, imreadEx, imwriteEx, toPillow, imencodeBase64, readFrames, writeVideo, imshowInline, resizeEx, letterbox, drawLabel, overlayMask, cropRect, montage, equalizeHistEx and more."
 ---
 
 # API reference
@@ -105,6 +105,82 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.cluster.clusterPoints
 
+### Point sets
+
+::: cv2u.core.points.rotatePoints
+
+::: cv2u.core.points.scalePoints
+
+::: cv2u.core.points.translatePoints
+
+::: cv2u.core.points.flipPoints
+
+::: cv2u.core.points.normalizePoints
+
+::: cv2u.core.points.denormalizePoints
+
+::: cv2u.core.points.clipPoints
+
+::: cv2u.core.points.pointsBoundingBox
+
+::: cv2u.core.points.distancePoints
+
+::: cv2u.core.points.nearestPoints
+
+::: cv2u.core.points.orderPoints
+
+::: cv2u.core.points.polygonCentroid
+
+::: cv2u.core.points.angleBetween
+
+::: cv2u.core.points.lineIntersection
+
+::: cv2u.core.points.pointLineDistance
+
+### Annotation formats
+
+::: cv2u.core.annotations.maskToPolygons
+
+::: cv2u.core.annotations.polygonsToMask
+
+::: cv2u.core.annotations.boxesToPolygons
+
+::: cv2u.core.annotations.polygonsToBoxes
+
+::: cv2u.core.annotations.polygonArea
+
+::: cv2u.core.annotations.polygonIoU
+
+::: cv2u.core.annotations.maskIoU
+
+::: cv2u.core.annotations.rleEncode
+
+::: cv2u.core.annotations.rleDecode
+
+::: cv2u.core.annotations.boxesToYolo
+
+::: cv2u.core.annotations.yoloToBoxes
+
+::: cv2u.core.annotations.readYoloLabels
+
+::: cv2u.core.annotations.writeYoloLabels
+
+::: cv2u.core.annotations.labelMapToColor
+
+::: cv2u.core.annotations.colorToLabelMap
+
+::: cv2u.core.annotations.instanceMasksToLabelMap
+
+::: cv2u.core.annotations.labelMapToMasks
+
+::: cv2u.core.annotations.drawPolygons
+
+::: cv2u.core.annotations.drawSegmentation
+
+::: cv2u.core.annotations.flipBoxes
+
+::: cv2u.core.annotations.flipPolygons
+
 ## imgcodecs
 
 ::: cv2u.imgcodecs.files.imreadEx
@@ -126,6 +202,24 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgcodecs.convert.imencodeBase64
 
 ::: cv2u.imgcodecs.convert.imdecodeBase64
+
+### Image file metadata
+
+::: cv2u.imgcodecs.meta.ImageInfo
+
+::: cv2u.imgcodecs.meta.imageInfo
+
+::: cv2u.imgcodecs.meta.exifOrientation
+
+::: cv2u.imgcodecs.meta.imreadOriented
+
+::: cv2u.imgcodecs.meta.imreadResized
+
+::: cv2u.imgcodecs.meta.imencodeEx
+
+::: cv2u.imgcodecs.meta.imdecodeEx
+
+::: cv2u.imgcodecs.meta.convertImageFormat
 
 ## imgproc
 
@@ -279,6 +373,178 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.puttext.putTextEx
 
+### Image statistics and quality checks
+
+::: cv2u.imgproc.stats.ImageStats
+
+::: cv2u.imgproc.stats.imageStats
+
+::: cv2u.imgproc.stats.isGrayscale
+
+::: cv2u.imgproc.stats.isBlank
+
+::: cv2u.imgproc.stats.isBlurry
+
+::: cv2u.imgproc.stats.brightnessScore
+
+::: cv2u.imgproc.stats.contrastScore
+
+::: cv2u.imgproc.stats.colorfulness
+
+::: cv2u.imgproc.stats.exposureScore
+
+::: cv2u.imgproc.stats.entropy
+
+::: cv2u.imgproc.stats.estimateNoise
+
+::: cv2u.imgproc.stats.mse
+
+::: cv2u.imgproc.stats.mae
+
+::: cv2u.imgproc.stats.histogramEx
+
+::: cv2u.imgproc.stats.histogramCompare
+
+::: cv2u.imgproc.stats.dominantHue
+
+::: cv2u.imgproc.stats.meanColor
+
+### Color arithmetic
+
+::: cv2u.imgproc.palette.CSS_COLORS
+
+::: cv2u.imgproc.palette.lightenColor
+
+::: cv2u.imgproc.palette.darkenColor
+
+::: cv2u.imgproc.palette.blendColors
+
+::: cv2u.imgproc.palette.complementaryColor
+
+::: cv2u.imgproc.palette.invertColor
+
+::: cv2u.imgproc.palette.colorDistance
+
+::: cv2u.imgproc.palette.nearestColor
+
+::: cv2u.imgproc.palette.colorName
+
+::: cv2u.imgproc.palette.textColorFor
+
+::: cv2u.imgproc.palette.randomColors
+
+::: cv2u.imgproc.palette.gradientPalette
+
+::: cv2u.imgproc.palette.colormapPalette
+
+### Data augmentation
+
+::: cv2u.imgproc.augment.addNoise
+
+::: cv2u.imgproc.augment.motionBlur
+
+::: cv2u.imgproc.augment.vignette
+
+::: cv2u.imgproc.augment.jpegArtifacts
+
+::: cv2u.imgproc.augment.randomErase
+
+::: cv2u.imgproc.augment.solarize
+
+::: cv2u.imgproc.augment.posterize
+
+::: cv2u.imgproc.augment.randomCrop
+
+::: cv2u.imgproc.augment.randomFlip
+
+::: cv2u.imgproc.augment.randomRotate
+
+::: cv2u.imgproc.augment.randomScale
+
+::: cv2u.imgproc.augment.randomPerspective
+
+::: cv2u.imgproc.augment.randomBrightnessContrast
+
+::: cv2u.imgproc.augment.randomHSV
+
+::: cv2u.imgproc.augment.randomBlur
+
+::: cv2u.imgproc.augment.mosaic
+
+::: cv2u.imgproc.augment.mixup
+
+::: cv2u.imgproc.augment.cutMix
+
+### Documents and OCR
+
+::: cv2u.imgproc.document.removeShadow
+
+::: cv2u.imgproc.document.enhanceDocument
+
+::: cv2u.imgproc.document.sauvolaThreshold
+
+::: cv2u.imgproc.document.niblackThreshold
+
+::: cv2u.imgproc.document.removeSpeckles
+
+::: cv2u.imgproc.document.removeLines
+
+::: cv2u.imgproc.document.detectTextLines
+
+::: cv2u.imgproc.document.detectTextBlocks
+
+::: cv2u.imgproc.document.removeBorder
+
+::: cv2u.imgproc.document.estimateSkew
+
+::: cv2u.imgproc.document.detectPage
+
+::: cv2u.imgproc.document.scanDocument
+
+### Stitching
+
+::: cv2u.imgproc.stitch.stitchImages
+
+::: cv2u.imgproc.stitch.stitchPair
+
+### Visualization
+
+::: cv2u.imgproc.visualize.applyColorMapEx
+
+::: cv2u.imgproc.visualize.heatmap
+
+::: cv2u.imgproc.visualize.colorBar
+
+::: cv2u.imgproc.visualize.drawArrow
+
+::: cv2u.imgproc.visualize.drawRotatedRect
+
+::: cv2u.imgproc.visualize.drawRotatedBoxes
+
+::: cv2u.imgproc.visualize.drawPolygon
+
+::: cv2u.imgproc.visualize.drawSkeleton
+
+::: cv2u.imgproc.visualize.COCO_SKELETON
+
+::: cv2u.imgproc.visualize.drawTrajectory
+
+::: cv2u.imgproc.visualize.drawCrosshair
+
+::: cv2u.imgproc.visualize.drawTextBlock
+
+::: cv2u.imgproc.visualize.drawFPS
+
+::: cv2u.imgproc.visualize.drawProgressBar
+
+::: cv2u.imgproc.visualize.drawLegend
+
+::: cv2u.imgproc.visualize.compareImages
+
+::: cv2u.imgproc.visualize.labeledMontage
+
+::: cv2u.imgproc.visualize.blendImages
+
 ## videoio
 
 ::: cv2u.videoio.video.readFrames
@@ -293,11 +559,99 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
     options:
       members: [width, height, fps, frameCount, duration]
 
+### Readers and writers
+
+::: cv2u.videoio.reader.VideoReader
+
+::: cv2u.videoio.reader.VideoWriterEx
+
+::: cv2u.videoio.reader.CameraStream
+
+::: cv2u.videoio.reader.FPSCounter
+
+::: cv2u.videoio.reader.frameToTime
+
+::: cv2u.videoio.reader.timeToFrame
+
+::: cv2u.videoio.reader.formatTimestamp
+
+### Video files
+
+::: cv2u.videoio.edit.extractFrames
+
+::: cv2u.videoio.edit.trimVideo
+
+::: cv2u.videoio.edit.concatVideos
+
+::: cv2u.videoio.edit.resizeVideo
+
+::: cv2u.videoio.edit.videoToGif
+
+::: cv2u.videoio.edit.imagesToVideo
+
+::: cv2u.videoio.edit.detectScenes
+
+::: cv2u.videoio.edit.sampleFrames
+
+::: cv2u.videoio.edit.videoThumbnail
+
 ## highgui
 
 ::: cv2u.highgui.display.imshowInline
 
 ::: cv2u.highgui.display.imshowEx
+
+## calib3d
+
+Camera calibration helpers; the OpenCV calib3d functions (`cv.calibrateCamera`, `cv.undistort`, ...) stay available as they are.
+
+### Camera calibration
+
+::: cv2u.calib3d.calibrate.CameraCalibration
+
+::: cv2u.calib3d.calibrate.makeChessboard
+
+::: cv2u.calib3d.calibrate.objectPointsGrid
+
+::: cv2u.calib3d.calibrate.findChessboardEx
+
+::: cv2u.calib3d.calibrate.calibrateCameraEx
+
+::: cv2u.calib3d.calibrate.reprojectionErrors
+
+::: cv2u.calib3d.calibrate.undistortEx
+
+::: cv2u.calib3d.calibrate.saveCalibration
+
+::: cv2u.calib3d.calibrate.loadCalibration
+
+## dnn
+
+`cv.dnn` is the `cv2u.dnn` package: it adds the helpers below and passes every `cv2.dnn` name (`cv.dnn.readNet`, `cv.dnn.NMSBoxes`, ...) through.
+
+### Inference
+
+::: cv2u.dnn.inference.PreprocessInfo
+
+::: cv2u.dnn.inference.Detections
+
+::: cv2u.dnn.inference.loadModel
+
+::: cv2u.dnn.inference.readClassNames
+
+::: cv2u.dnn.inference.preprocessImage
+
+::: cv2u.dnn.inference.inferImage
+
+::: cv2u.dnn.inference.postprocessDetections
+
+::: cv2u.dnn.inference.postprocessClassification
+
+::: cv2u.dnn.inference.softmax
+
+::: cv2u.dnn.inference.sigmoid
+
+::: cv2u.dnn.inference.drawDetections
 
 ## flag
 

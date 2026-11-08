@@ -71,6 +71,33 @@ Never re-implement something OpenCV already does well.
 | `dominantColors`, `colorQuantize`, `kmeansColors` | `cv.kmeans` needs reshaping, float conversion and criteria, and its results change from run to run (global RNG). |
 | `peakColors` | Automatic color clustering usually needs scikit-learn, samples the pixels and is slow; cv2u's own histogram-peak method needs neither. |
 | `meanShiftColors`, `dbscanColors`, `drawClusters`, `clusterPoints` | OpenCV has no clustering that finds the number of groups by itself, for colors or for points. |
+| `VideoReader`, `VideoWriterEx`, `CameraStream` | `cv.VideoCapture`/`cv.VideoWriter` need `isOpened()` checks, `CAP_PROP_*` getters, fourcc/size/`isColor` up front, manual `release()`, and buffer live streams so a slow consumer reads stale frames. |
+| `extractFrames`, `trimVideo`, `concatVideos`, `resizeVideo`, `videoToGif`, `imagesToVideo` | Every "ffmpeg-lite" task (dump frames, cut, join, resize, GIF, time-lapse) is the same read/write loop; OpenCV cannot write GIFs at all. |
+| `detectScenes`, `sampleFrames`, `videoThumbnail`, `FPSCounter`, `formatTimestamp` | Scene cuts, preview sheets, FPS overlays and `HH:MM:SS.mmm` stamps are rewritten in every video script. |
+| `addNoise`, `motionBlur`, `vignette`, `jpegArtifacts`, `solarize`, `posterize` | Classic photo degradations for augmentation have no OpenCV function (`cv.randn` needs a preallocated array; directional blur, vignetting, solarize and posterize are rewritten in every project). |
+| `randomCrop`, `randomFlip`, `randomRotate`, `randomScale`, `randomPerspective` | `cv.flip`/`cv.warpAffine` never touch the detection boxes; keeping labels aligned with a random geometric transform is bookkeeping everyone rewrites. |
+| `mosaic`, `mixup`, `cutMix`, `randomErase` | The standard detector/classifier mixing augmentations otherwise require albumentations or a framework-specific loader. |
+| `maskToPolygons`, `polygonsToMask`, `rleEncode`, `rleDecode` | Datasets store masks as COCO polygons or RLE; `cv.findContours`/`cv.fillPoly` need `int32 (N, 1, 2)` arrays, keep one-pixel specks, and OpenCV has no run-length encoding at all. |
+| `boxesToYolo`, `yoloToBoxes`, `readYoloLabels`, `writeYoloLabels`, `flipBoxes`, `flipPolygons` | Normalized `class cx cy w h` label files and keeping annotations aligned with `cv.flip` are the same arithmetic in every training script. |
+| `polygonIoU`, `polygonArea`, `maskIoU`, `labelMapToColor`, `colorToLabelMap`, `drawSegmentation` | `cv.intersectConvexConvex` only handles convex shapes, `cv.contourArea` rounds to integers, and coloring / recovering a class-id map has no OpenCV function. |
+| `preprocessImage`, `postprocessDetections` | `cv.dnn.blobFromImage` stretches the image and forgets the geometry, and nothing in OpenCV decodes YOLO-style outputs; cv2u letterboxes, keeps the mapping and returns boxes on the original image after per-class NMS. |
+| `loadModel`, `readClassNames` | `cv.dnn.readNet` cannot open non-ASCII paths on Windows and reports a missing file as a C++ assertion; cv2u reads ONNX/TFLite/TF models through Python and raises `FileNotFoundError`. |
+| `inferImage`, `drawDetections` | `Net.forward()` returns only the first output and OpenCV has no labeled-detection drawing; cv2u returns every output layer and draws boxes with class names and scores. |
+| `heatmap`, `applyColorMapEx`, `colorBar` | `cv.applyColorMap` only takes an 8-bit map of the image size; overlaying a float attention/saliency map means normalize, convert, resize and `addWeighted` every time, and there is no legend strip. |
+| `drawArrow`, `drawRotatedRect`, `drawPolygon`, `drawSkeleton`, `drawTrajectory`, `drawCrosshair` | `cv.arrowedLine` sizes the head relative to the arrow length, OpenCV cannot draw its own `RotatedRect`, `polylines`/`fillPoly` need `int32 (N, 1, 2)` and draw opaque only, and poses, tracks and crosshairs have no drawing function. |
+| `drawTextBlock`, `drawFPS`, `drawProgressBar`, `drawLegend`, `compareImages`, `labeledMontage`, `blendImages` | `cv.putText` writes one line with no background; HUD panels, before/after views (split, blend, diff) and titled grids are the same boilerplate in every demo; `cv.addWeighted` blends exactly two images. |
+| `imageStats`, `isBlank`, `isBlurry`, `estimateNoise` | Dataset triage (flat frames, out-of-focus shots, noise level, entropy) needs a handful of numpy formulas per image; `cv.meanStdDev`/`cv.minMaxLoc` only cover parts and `cv.minMaxLoc` rejects color images. |
+| `histogramEx`, `histogramCompare` | `cv.calcHist` takes lists of images, channels and ranges per dtype and returns a `(bins, 1)` column per call; comparing two images needs the same setup twice plus normalization. |
+| `mse`, `mae`, `colorfulness`, `dominantHue` | Only `cv.PSNR` exists for error metrics (log scale, overflow-prone on `uint8` by hand), and there is no colorfulness or dominant-hue measure. |
+| `sauvolaThreshold`, `niblackThreshold` | Local thresholds for OCR only exist in the `ximgproc` contrib module (`niBlackThreshold`), which `opencv-python` does not ship; here they are built from `cv.integral2`. |
+| `removeShadow`, `removeLines`, `removeSpeckles`, `enhanceDocument` | Cleaning a photographed page (shadows, table rules, dust) is a well-known chain of dilate/medianBlur/morphologyEx/inpaint calls that every OCR project rewrites. |
+| `detectPage`, `scanDocument`, `detectTextLines`, `detectTextBlocks`, `estimateSkew`, `removeBorder` | There is no function from "photo of a document" to an upright page, its text lines or its skew angle; only the primitives (`Canny`, `approxPolyDP`, `connectedComponentsWithStats`). |
+| `findChessboardEx`, `calibrateCameraEx`, `undistortEx` | The calibration tutorial is a page of boilerplate: object-point grids, `(found, corners)` tuples with `(N,1,2)` shapes, a separate `cornerSubPix` on a gray copy, and `undistort` that leaves black borders unless you also call `getOptimalNewCameraMatrix` and crop the ROI. |
+| `saveCalibration`, `loadCalibration` | `cv.FileStorage` writes YAML/XML and cannot open non-ASCII paths on Windows; a JSON file works everywhere. |
+| `stitchImages`, `stitchPair` | `cv.Stitcher.stitch` returns a bare integer status and `None` instead of raising, and the bare `warpPerspective` stitch cuts off whatever lands outside the first image. |
+| `imageInfo`, `imreadOriented`, `imreadResized` | `cv.imread` must decode the whole file to tell its size, applies the EXIF orientation only for `IMREAD_COLOR`/`IMREAD_GRAYSCALE` (not for `IMREAD_UNCHANGED` or `IMREAD_REDUCED_*`), and reduced-size decoding is a flag few know. |
+| `imencodeEx`, `imdecodeEx`, `convertImageFormat` | `cv.imencode` returns `(ok, array)` instead of `bytes`, `cv.imdecode` needs `np.frombuffer` first, and converting a file to JPEG silently drops the alpha channel. |
+| `lightenColor`, `colorName`, `textColorFor`, `rotatePoints`, `distancePoints`, `lineIntersection` | OpenCV converts whole images between color spaces but has nothing for one color, and transforms points only through matrices: no distance matrix, corner ordering, flip or line intersection. |
 | `FLIP_MODE_*`, `DDEPTH_SAME`, `ALL_CONTOURS`, `REDUCE_TO_*`, `WAIT_FOREVER`, `KEY_*` | Parameters such as `flipCode`, `ddepth`, `contourIdx`, `dim` and `cv.waitKey` take magic numbers with no OpenCV constant (OpenCV's own constants like `cv.FILLED` are used as they are). |
 
 ## 2. Look like OpenCV
@@ -78,7 +105,8 @@ Never re-implement something OpenCV already does well.
 An extension should feel like it was always part of OpenCV.
 
 - **Modules** mirror OpenCV's: `core`, `imgcodecs` (reading and writing images), `imgproc` (image processing),
-  `videoio` (video files and cameras) and `highgui` (showing images).
+  `videoio` (video files and cameras), `highgui` (showing images), `calib3d` (camera calibration) and `dnn`
+  (inference; `cv.dnn` is the `cv2u.dnn` package, which passes every OpenCV name through).
   An extension goes where the OpenCV function it extends lives (`resizeEx` in `imgproc` like `cv.resize`).
 - **Names** use camelCase like OpenCV. An extended version of an existing OpenCV function gets the `Ex` suffix
   (`rotateEx` for `cv.rotate`, `putTextEx` for `cv.putText`). Constants use `UPPER_CASE`.
