@@ -22,7 +22,7 @@ pip install "python-opencv-utils[opencv]"            # opencv-python
 pip install "python-opencv-utils[headless]"          # opencv-python-headless (servers, Docker; no GUI)
 pip install "python-opencv-utils[contrib]"           # opencv-contrib-python
 pip install "python-opencv-utils[contrib-headless]"  # opencv-contrib-python-headless
-pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
+pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, dbscanColors, clusterPoints)
 ```
 
 If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
@@ -60,7 +60,7 @@ src = cv.imreadEx("C:/사진/고양이.jpg")  # cv.imread fails on non-ASCII pat
 small = cv.resizeEx(src, width=640)  # keeps the aspect ratio
 boxed, scale, (left, top) = cv.letterbox(src, (640, 640))  # fit + pad, e.g. for a model input
 logo = cv.imread("logo.png", cv.IMREAD_UNCHANGED)  # BGRA with transparency
-stamped = cv.overlayImage(small, logo, org=(10, 10), opacity=0.8)
+stamped = cv.overlayImage(small, logo, org=(10, 10), alpha=0.8)
 cv.imwriteEx("C:/사진/비교.png", cv.hconcatEx([small, stamped], gap=8))
 ```
 
@@ -87,7 +87,7 @@ img = cv.imread("street.jpg")
 detections = [((40, 60, 120, 200), "person", 0.94), ((200, 90, 160, 110), "자동차", 0.88)]
 crops = []
 for box, name, score in detections:
-    crops.append(cv.cropEx(img, box, margin=10, fill=0))  # safe even at the image border
+    crops.append(cv.cropRect(img, box, margin=10, fill=0))  # safe even at the image border
     cv.drawLabel(img, box, f"{name} {score:.2f}", (0, 200, 255), fontPath="C:/Windows/Fonts/malgun.ttf")
 
 hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
@@ -153,13 +153,13 @@ images, simply add up, so it neither needs a sample nor splits flat colors apart
 `meanShiftColors` added two clusters of 421 and 79 pixels. `bins` and `sigma` make it finer or coarser, and
 `minRegion` absorbs small speckles into the surrounding region.
 
-![kmeansColors, meanShiftColors, peakColors, DBSCAN and dominantColors on a photo of a sneaker](https://raw.githubusercontent.com/076923/cv2-utils/main/images/examples/cluster-shoe-compare.jpg)
+![kmeansColors, meanShiftColors, peakColors, dbscanColors and dominantColors on a photo of a sneaker](https://raw.githubusercontent.com/076923/cv2-utils/main/images/examples/cluster-shoe-compare.jpg)
 
 On a real photo of a sneaker, `peakColors` separates background, the dark and bright
 greens and the white parts into 4 clean regions. `meanShiftColors` finds 6 colors but leaves the surface
-speckled, and `DBSCAN` with `eps=1.7` splits the image into 496 tiny clusters, which mostly reproduces the input.
+speckled, and `dbscanColors` with `eps=1.7` splits the image into 496 tiny clusters, which mostly reproduces the input.
 Note that the dark-red star (15 pixels, 0.04% of the image, almost black) merges into the background with every
-color clustering except that very fine `DBSCAN`; details this small are below what a palette can keep.
+color clustering except that very fine `dbscanColors`; details this small are below what a palette can keep.
 
 ```python
 import cv2u as cv

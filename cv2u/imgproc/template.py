@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+from .._validate import check_finite, check_image_not_empty
 from .color import toGray
 
 __all__ = ["findTemplate"]
@@ -14,7 +15,7 @@ def findTemplate(
     threshold: float = 0.8,
     maxCount: int | None = None,
     method: int = cv2.TM_CCOEFF_NORMED,
-) -> list[tuple[int, int, int, int, float]]:
+) -> np.ndarray:
     """Find where ``templ`` appears in ``src``: the matches as boxes, not a score map.
 
     ``cv.matchTemplate`` returns a map of scores; turning it into matches means thresholding, finding maxima with
@@ -30,17 +31,23 @@ def findTemplate(
             For ``TM_SQDIFF_NORMED`` the score is ``1 - difference``, so higher is always better.
 
     Returns:
-        ``(x, y, width, height, score)`` for each match, best first; the boxes do not overlap by more than half
-        the template in either direction.
+        A float64 array of shape ``(N, 5)`` with one row ``(x, y, width, height, score)`` per match, best first;
+        empty ``(0, 5)`` when nothing is found. The boxes do not overlap by more than half the template in either
+        direction. ``matches[:, :4]`` are the boxes for :func:`drawBoxes` or :func:`nms`.
 
     Raises:
-        ValueError: If ``method`` is not normalized, ``threshold`` is outside ``[0, 1]`` or ``templ`` is larger than
-            ``src``.
+        ValueError: If an image is empty, ``method`` is not normalized, ``threshold`` is outside ``[0, 1]``,
+            ``maxCount`` is negative, or ``templ`` is larger than ``src``.
     """
+    check_image_not_empty("src", src)
+    check_image_not_empty("templ", templ)
     if method not in _NORMED_METHODS:
         raise ValueError("method must be cv.TM_CCOEFF_NORMED, cv.TM_CCORR_NORMED or cv.TM_SQDIFF_NORMED")
+    check_finite("threshold", threshold)
     if not 0.0 <= threshold <= 1.0:
         raise ValueError(f"threshold must be in [0, 1], got {threshold}")
+    if maxCount is not None and maxCount < 0:
+        raise ValueError(f"maxCount must not be negative, got {maxCount}")
     h, w = templ.shape[:2]
     if h > src.shape[0] or w > src.shape[1]:
         raise ValueError(f"templ {templ.shape[:2]} is larger than src {src.shape[:2]}")
@@ -52,13 +59,13 @@ def findTemplate(
         scores = 1.0 - scores
     scores = np.nan_to_num(scores, nan=0.0)  # flat regions give NaN with TM_CCOEFF_NORMED
 
-    matches: list[tuple[int, int, int, int, float]] = []
+    matches: list[tuple[float, float, float, float, float]] = []
     half_w, half_h = max(1, w // 2), max(1, h // 2)
     while maxCount is None or len(matches) < maxCount:
         _, best, _, (x, y) = cv2.minMaxLoc(scores)
         if best < threshold:
             break
-        matches.append((int(x), int(y), int(w), int(h), float(best)))
+        matches.append((float(x), float(y), float(w), float(h), float(best)))
         # Suppress neighbors closer than half the template, so a match is not reported twice.
         scores[max(0, y - half_h) : y + half_h + 1, max(0, x - half_w) : x + half_w + 1] = -1.0
-    return matches
+    return np.array(matches, dtype=np.float64).reshape(-1, 5)

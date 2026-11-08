@@ -104,7 +104,7 @@ def listImages(path: str | os.PathLike[str], recursive: bool = False) -> list[Pa
 
 
 def imreadAll(
-    filenames: Iterable[str | os.PathLike[str]], flags: int = cv2.IMREAD_COLOR, strict: bool = True
+    filenames: Iterable[str | os.PathLike[str]], flags: int = cv2.IMREAD_COLOR, *, strict: bool = True
 ) -> list[np.ndarray | None]:
     """Read many images with :func:`imreadEx`, e.g. a whole folder from :func:`listImages`.
 
@@ -134,6 +134,7 @@ def imwriteAll(
     images: Iterable[np.ndarray],
     params: Sequence[int] = (),
     makeDirs: bool = False,
+    *,
     strict: bool = True,
 ) -> list[bool]:
     """Write many images with :func:`imwriteEx`, pairing each path with the image at the same position.

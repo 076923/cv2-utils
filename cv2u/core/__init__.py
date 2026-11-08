@@ -22,9 +22,18 @@ from .annotations import (
     yoloToBoxes,
 )
 from .boxes import boxIoU, clipBoxes, expandBoxes, nms, scaleBoxes, xywhToXyxy, xyxyToXywh
-from .cluster import DBSCAN, clusterPoints, colorQuantize, dominantColors, drawDBSCAN, kmeansColors, meanShiftColors
+from .cluster import (
+    Clusters,
+    clusterPoints,
+    colorQuantize,
+    dbscanColors,
+    dominantColors,
+    drawClusters,
+    kmeansColors,
+    meanShiftColors,
+)
 from .compose import hconcatEx, montage, overlayImage, vconcatEx
-from .extension import DHEdge, cartesianToPolar, centerPoint, gammaCorrection, isInside, polarToCartesian
+from .extension import boldEdges, cartesianToPolar, centerPoint, gammaCorrection, isInside, polarToCartesian
 from .images import imcolor, imcolorLike, makeGradient
 from .layout import mapTiles, mergeTiles, padToMultiple, padToSize, splitTiles
 from .peaks import peakColors
@@ -45,30 +54,31 @@ from .points import (
     scalePoints,
     translatePoints,
 )
-from .roi import centerCrop, cropEx, cropToContent, inRangeEx
+from .roi import cropCenter, cropRect, cropToContent, inRangeEx
 from .rotate import rotateEx
 
 __all__ = [
-    "DBSCAN",
-    "DHEdge",
+    "Clusters",
     "angleBetween",
+    "boldEdges",
     "boxIoU",
     "boxesToPolygons",
     "boxesToYolo",
     "cartesianToPolar",
-    "centerCrop",
     "centerPoint",
     "clipBoxes",
     "clipPoints",
     "clusterPoints",
     "colorQuantize",
     "colorToLabelMap",
-    "cropEx",
+    "cropCenter",
+    "cropRect",
     "cropToContent",
+    "dbscanColors",
     "denormalizePoints",
     "distancePoints",
     "dominantColors",
-    "drawDBSCAN",
+    "drawClusters",
     "drawPolygons",
     "drawSegmentation",
     "expandBoxes",

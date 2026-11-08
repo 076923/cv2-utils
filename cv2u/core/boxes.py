@@ -58,6 +58,9 @@ def xywhToXyxy(boxes: ArrayLike) -> np.ndarray:
 
     OpenCV (``cv.boundingRect``, ``cv.rectangle`` with a rect, ``cv.dnn.NMSBoxes``) uses ``(x, y, w, h)``;
     most detector APIs and slicing code want corners. The input shape and dtype are kept.
+
+    Raises:
+        ValueError: If the last dimension of ``boxes`` does not have 4 values.
     """
     array = np.array(boxes, copy=True)
     if array.shape[-1:] != (4,):
@@ -68,7 +71,11 @@ def xywhToXyxy(boxes: ArrayLike) -> np.ndarray:
 
 
 def xyxyToXywh(boxes: ArrayLike) -> np.ndarray:
-    """Convert boxes from corners ``(x1, y1, x2, y2)`` to ``(x, y, width, height)`` (inverse of :func:`xywhToXyxy`)."""
+    """Convert boxes from corners ``(x1, y1, x2, y2)`` to ``(x, y, width, height)`` (inverse of :func:`xywhToXyxy`).
+
+    Raises:
+        ValueError: If the last dimension of ``boxes`` does not have 4 values.
+    """
     array = np.array(boxes, copy=True)
     if array.shape[-1:] != (4,):
         raise ValueError(f"boxes must end in 4 values (x1, y1, x2, y2), got shape {array.shape}")
@@ -100,13 +107,16 @@ def nms(
         An ``int64`` array of indices into ``boxes``, in descending score order (empty if none survive).
 
     Raises:
-        ValueError: If ``boxes`` and ``scores`` disagree in length, or a threshold is out of range.
+        ValueError: If ``boxes`` and ``scores`` disagree in length, ``iouThreshold`` is outside ``[0, 1]``,
+            ``scoreThreshold`` is not finite, or ``maxCount`` is negative.
     """
     array = _boxes(boxes, "boxes") if np.size(boxes) else np.zeros((0, 4))
     score_array = np.asarray(scores, dtype=np.float64).reshape(-1)
     if len(score_array) != len(array):
         raise ValueError(f"scores must have one value per box, got {len(score_array)} for {len(array)} boxes")
     check_finite("iouThreshold", iouThreshold, nonnegative=True)
+    if iouThreshold > 1:
+        raise ValueError(f"iouThreshold must be in [0, 1], got {iouThreshold}")
     check_finite("scoreThreshold", scoreThreshold)
     if maxCount is not None and maxCount < 0:
         raise ValueError(f"maxCount must not be negative, got {maxCount}")
@@ -154,11 +164,14 @@ def _nms_numpy(array: np.ndarray, order: np.ndarray, iouThreshold: float, maxCou
 def clipBoxes(boxes: ArrayLike, size: tuple[int, int]) -> np.ndarray:
     """Clip boxes ``(x, y, width, height)`` to an image of ``size`` ``(width, height)``.
 
-    Boxes that lie completely outside become zero-sized at the border. Useful before :func:`cropEx` or
+    Boxes that lie completely outside become zero-sized at the border. Useful before :func:`cropRect` or
     :func:`drawLabel` on detections near the edge.
 
     Returns:
         A float64 array of shape ``(N, 4)``, or ``(4,)`` for a single input box.
+
+    Raises:
+        ValueError: If ``size`` is smaller than 1x1, or the boxes do not have 4 finite values each.
     """
     width, height = size
     if width < 1 or height < 1:
@@ -177,6 +190,7 @@ def scaleBoxes(
     boxes: ArrayLike,
     scale: float | tuple[float, float],
     offset: tuple[float, float] = (0, 0),
+    *,
     inverse: bool = False,
 ) -> np.ndarray:
     """Scale (and shift) boxes, e.g. to map detections on a resized or letterboxed image back to the original.
@@ -215,7 +229,7 @@ def scaleBoxes(
 def expandBoxes(
     boxes: ArrayLike,
     ratio: float = 0.0,
-    pixels: float = 0.0,
+    margin: float = 0.0,
     size: tuple[int, int] | None = None,
 ) -> np.ndarray:
     """Grow (or shrink) boxes around their center, e.g. to add context before cropping a face or an object.
@@ -224,7 +238,7 @@ def expandBoxes(
         boxes: Boxes ``(x, y, width, height)``.
         ratio: Fraction of the width and height to add on each side (``0.1`` adds 10% left and right, 10% top and
             bottom). Negative values shrink.
-        pixels: Fixed number of pixels to add on each side, after ``ratio``.
+        margin: Fixed number of pixels to add on each side, after ``ratio`` (as ``margin`` in :func:`cropRect`).
         size: ``(width, height)`` of the image; when given, the result is clipped to it.
 
     Returns:
@@ -232,15 +246,15 @@ def expandBoxes(
         below 0.
 
     Raises:
-        ValueError: If ``ratio`` or ``pixels`` is not finite.
+        ValueError: If ``ratio`` or ``margin`` is not finite, or the boxes do not have 4 finite values each.
     """
     check_finite("ratio", ratio)
-    check_finite("pixels", pixels)
+    check_finite("margin", margin)
     single = np.ndim(boxes) == 1
     array = _boxes(boxes, "boxes")
     # Shrinking stops at the center point, so the box never flips.
-    grow_x = np.maximum(array[:, 2] * ratio + pixels, -array[:, 2] / 2)
-    grow_y = np.maximum(array[:, 3] * ratio + pixels, -array[:, 3] / 2)
+    grow_x = np.maximum(array[:, 2] * ratio + margin, -array[:, 2] / 2)
+    grow_y = np.maximum(array[:, 3] * ratio + margin, -array[:, 3] / 2)
     out = np.stack(
         [
             array[:, 0] - grow_x,

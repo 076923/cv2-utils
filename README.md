@@ -41,12 +41,12 @@ pip install "python-opencv-utils[opencv]"            # opencv-python
 pip install "python-opencv-utils[headless]"          # opencv-python-headless (servers, Docker; no GUI)
 pip install "python-opencv-utils[contrib]"           # opencv-contrib-python
 pip install "python-opencv-utils[contrib-headless]"  # opencv-contrib-python-headless
-pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, DBSCAN, clusterPoints)
+pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanShiftColors, dbscanColors, clusterPoints)
 ```
 
 If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
 Dependencies: OpenCV 4.10 or newer (including OpenCV 5), `numpy>=2`, `pillow`.
-The optional `cluster` extra adds `scikit-learn` for `meanShiftColors`, `DBSCAN` and `clusterPoints`.
+The optional `cluster` extra adds `scikit-learn` for `meanShiftColors`, `dbscanColors` and `clusterPoints`.
 `dominantColors`, `colorQuantize` and `kmeansColors` work without it (they use `cv.kmeans`).
 
 > [!NOTE]
@@ -82,7 +82,7 @@ src = cv.imreadEx("C:/사진/고양이.jpg")  # cv.imread fails on non-ASCII pat
 small = cv.resizeEx(src, width=640)  # keeps the aspect ratio
 boxed, scale, (left, top) = cv.letterbox(src, (640, 640))  # fit + pad, e.g. for a model input
 logo = cv.imread("logo.png", cv.IMREAD_UNCHANGED)  # BGRA with transparency
-stamped = cv.overlayImage(small, logo, org=(10, 10), opacity=0.8)
+stamped = cv.overlayImage(small, logo, org=(10, 10), alpha=0.8)
 cv.imwriteEx("C:/사진/비교.png", cv.hconcatEx([small, stamped], gap=8))
 ```
 
@@ -109,7 +109,7 @@ img = cv.imread("street.jpg")
 detections = [((40, 60, 120, 200), "person", 0.94), ((200, 90, 160, 110), "자동차", 0.88)]
 crops = []
 for box, name, score in detections:
-    crops.append(cv.cropEx(img, box, margin=10, fill=0))  # safe even at the image border
+    crops.append(cv.cropRect(img, box, margin=10, fill=0))  # safe even at the image border
     cv.drawLabel(img, box, f"{name} {score:.2f}", (0, 200, 255), fontPath="C:/Windows/Fonts/malgun.ttf")
 
 hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
@@ -172,7 +172,7 @@ for i, contour in enumerate(cv.sortContours(round_ones, "left-to-right")):
     stats = cv.contourStats(contour)  # area, perimeter, rect, center, solidity, circularity, ...
     cv.drawLabel(scan, stats.rect, f"{i}: {stats.area:.0f} px", (0, 160, 255))
     cv.imwriteEx(f"out/piece_{i}.png", cv.cropContour(scan, contour, transparent=True), makeDirs=True)
-debug = cv.drawContoursEx(scan, contours, labels=True)  # each contour in its own color, numbered
+debug = cv.drawContoursEx(cv.toBGR(scan), contours, labels=True)  # each contour in its own color, numbered
 
 for x, y, w, h, score in cv.findTemplate(scan, cv.imread("logo.png"), threshold=0.9):
     print(f"logo at ({x}, {y}), score {score:.2f}")
@@ -204,13 +204,13 @@ images, simply add up, so it neither needs a sample nor splits flat colors apart
 `meanShiftColors` added two clusters of 421 and 79 pixels. `bins` and `sigma` make it finer or coarser, and
 `minRegion` absorbs small speckles into the surrounding region.
 
-<img src="https://raw.githubusercontent.com/076923/cv2-utils/main/images/examples/cluster-shoe-compare.jpg" alt="kmeansColors, meanShiftColors, peakColors, DBSCAN and dominantColors on a photo of a sneaker">
+<img src="https://raw.githubusercontent.com/076923/cv2-utils/main/images/examples/cluster-shoe-compare.jpg" alt="kmeansColors, meanShiftColors, peakColors, dbscanColors and dominantColors on a photo of a sneaker">
 
 On a real photo of a sneaker, `peakColors` separates background, the dark and bright
 greens and the white parts into 4 clean regions. `meanShiftColors` finds 6 colors but leaves the surface
-speckled, and `DBSCAN` with `eps=1.7` splits the image into 496 tiny clusters, which mostly reproduces the input.
+speckled, and `dbscanColors` with `eps=1.7` splits the image into 496 tiny clusters, which mostly reproduces the input.
 Note that the dark-red star (15 pixels, 0.04% of the image, almost black) merges into the background with every
-color clustering except that very fine `DBSCAN`; details this small are below what a palette can keep.
+color clustering except that very fine `dbscanColors`; details this small are below what a palette can keep.
 
 ```python
 import cv2u as cv
@@ -263,34 +263,34 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 
 | Function | Description |
 |---|---|
-| `rotateEx(src, angle, scale=1.0, flags=None, borderMode=None, borderValue=None)` | Rotate around the center without cropping. Extra arguments go to `cv.warpAffine`. |
+| `rotateEx(src, angle, scale=1.0, flags=cv.INTER_LINEAR, borderMode=cv.BORDER_CONSTANT, borderValue=0)` | Rotate around the center without cropping. Extra arguments go to `cv.warpAffine`. |
 | `centerPoint(contour)` | Centroid `(x, y)` of a contour. Raises `ValueError` for zero area. |
 | `isInside(p, polygon)` | Point-in-polygon test. `polygon` is `(N, 1, 2)` or `(N, 2)`. |
 | `cartesianToPolar(x, y, angleInDegrees=False)` | Returns `(theta, rho)` for scalars or arrays. Note: `cv.cartToPolar` returns `(magnitude, angle)`. |
 | `polarToCartesian(theta, rho, angleInDegrees=False)` | Returns `(x, y)` for scalars or arrays. |
-| `imcolor(shape, color, dtype=np.uint8)` | Image filled with `color`. |
+| `imcolor(size, color, channels=3, dtype=np.uint8)` | Image of `(width, height)` filled with `color`. |
 | `imcolorLike(src, color, dtype=None)` | Image with the shape (and dtype) of `src`, filled with `color`. |
-| `makeGradient(shape, start, end, direction="horizontal")` | Linear gradient image. `direction` is `"horizontal"`, `"vertical"` or `"raster"`. |
+| `makeGradient(size, start, end, direction="horizontal", channels=3)` | Linear gradient image of `(width, height)`. `direction` is `"horizontal"`, `"vertical"` or `"raster"`. |
 | `gammaCorrection(src, gamma=1.0)` | Gamma correction for 8-bit images through a lookup table. |
-| `DHEdge(src)` | Edge enhancement for single-channel 8-bit images. |
+| `boldEdges(src)` | Bold, high-contrast edge map for 8-bit images (drawings, logos). |
 | `dominantColors(src, k=5)` | The `k` most common colors with their share, most common first (a palette). |
 | `colorQuantize(src, k)` | Reduce the image to `k` colors. |
-| `kmeansColors(src, k, seed=0)` | Deterministic color k-means in Lab space. Returns `(maps, centers)`. |
+| `kmeansColors(src, k, seed=0)` | Deterministic color k-means in Lab space. Returns `Clusters(maps, centers)`. |
 | `peakColors(src, bins=32, sigma=0.75, minShare=0.01, minRegion=0)` | Finds the number of colors itself from the peaks of the color histogram. Fast, deterministic, no extra. |
 | `meanShiftColors(src, bandwidth=None)` | Like `kmeansColors`, but finds the number of colors itself. Needs `[cluster]`. |
-| `DBSCAN(src, eps, minSamples)` | Cluster BGR pixels in Lab space. Returns `(maps, labels)`. Noise is `0`. Needs `[cluster]`. |
-| `drawDBSCAN(src, maps, labels)` | Paint each cluster with its mean color. |
+| `dbscanColors(src, eps, minSamples=4)` | Cluster BGR pixels in Lab space with DBSCAN. Returns `Clusters(maps, centers)`; noise is `-1`. Needs `[cluster]`. |
+| `drawClusters(src, maps)` | Paint each cluster with its mean color, as a new image. |
 | `clusterPoints(points, eps, minSamples=2)` | Group nearby points (keypoints, detections, ...) with DBSCAN. Needs `[cluster]`. |
 | `hconcatEx(images, color=0, gap=0)` | Side by side, for images of different heights and channels. |
 | `vconcatEx(images, color=0, gap=0)` | Stacked vertically, for images of different widths and channels. |
-| `overlayImage(src, overlay, org=(0, 0), opacity=1.0)` | Alpha-blend a (transparent) image onto another, clipped at the borders. |
+| `overlayImage(src, overlay, org=(0, 0), alpha=1.0)` | Alpha-blend a (transparent) image onto another, clipped at the borders. |
 | `montage(images, cols=None, gap=0, color=0, cellSize=None)` | Arrange images in a grid. |
-| `cropEx(src, rect, margin=0, fill=None)` | Crop safely when the box extends outside the image (clip, or pad with `fill`). |
+| `cropRect(src, rect, margin=0, fill=None)` | Crop safely when the box extends outside the image (clip, or pad with `fill`). |
 | `boxIoU(boxesA, boxesB)` | IoU of every pair of boxes `(x, y, w, h)`, as an `(N, M)` array. |
 | `nms(boxes, scores, iouThreshold=0.5, scoreThreshold=0, maxCount=None)` | Non-maximum suppression; the indices to keep, best first. |
 | `xywhToXyxy(boxes)`, `xyxyToXywh(boxes)` | Convert between `(x, y, w, h)` and corner boxes. |
-| `clipBoxes(boxes, size)`, `scaleBoxes(boxes, scale, offset=(0, 0), inverse=False)`, `expandBoxes(boxes, ratio=0, pixels=0, size=None)` | Clip to the image, undo a resize or letterbox, grow for context. |
-| `centerCrop(src, size, fill=None)` | Crop `(width, height)` from the middle. |
+| `clipBoxes(boxes, size)`, `scaleBoxes(boxes, scale, offset=(0, 0), inverse=False)`, `expandBoxes(boxes, ratio=0, margin=0, size=None)` | Clip to the image, undo a resize or letterbox, grow for context. |
+| `cropCenter(src, size, fill=None)` | Crop `(width, height)` from the middle. |
 | `inRangeEx(src, lowerb, upperb)` | `cv.inRange` for HSV hue ranges that wrap around, such as red (170 to 10). |
 | `cropToContent(src, background=None, tolerance=0, margin=0)` | Trim a uniform border (scan margins, black bars). |
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
@@ -305,7 +305,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `imwriteEx(filename, img, params=(), makeDirs=False)` | `cv.imwrite` that also works with non-ASCII paths on Windows, and can create missing folders. |
 | `listImages(path, recursive=False)` | The image files in a folder, in natural order (`img2` before `img10`). |
 | `imreadAll(filenames, flags=cv.IMREAD_COLOR, strict=True)`, `imwriteAll(filenames, images, params=(), makeDirs=False, strict=True)` | Read or write many files; unreadable files raise with the file name (or give `None`). |
-| `urlread(url, flags=cv.IMREAD_UNCHANGED, timeout=None, headers=None, maxBytes=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
+| `imreadUrl(url, flags=cv.IMREAD_COLOR, timeout=None, headers=None, maxBytes=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
 | `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order. Every Pillow mode is accepted; 16-bit, `int32`, `float32` and `bool` images round-trip unchanged. |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
 
@@ -321,31 +321,31 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `matchHistograms(src, reference)`, `colorTransfer(src, reference)` | Give an image the tones or the color mood of another one. |
 | `translate(src, dx, dy)` | Shift an image, keeping its size. |
 | `transformPoints(points, M)` | Map points through a 2x3 affine or 3x3 perspective matrix, in any point layout. |
-| `cropRotatedRect(src, rect)` | Cut out a rotated box from `cv.minAreaRect` as an upright image. |
+| `cropRotatedRect(src, rect, borderMode=cv.BORDER_CONSTANT, borderValue=0)` | Cut out a rotated box from `cv.minAreaRect` as an upright image. |
 | `deskew(src, maxAngle=45.0)` | Straighten a tilted page from its text lines. Returns `(dst, angle)`. |
 | `pixelate(src, blockSize=16, rect=None)` | Mosaic the image or one box, e.g. to anonymize faces. |
 | `drawDashedLine(img, pt1, pt2, color)`, `drawDashedRectangle(img, rect, color)` | Dashed lines and boxes, in place. |
-| `drawRoundedRectangle(img, rect, color, thickness=1, lineType=cv.LINE_8, radius=8)` | A box with rounded corners, in place. |
+| `drawRoundedRectangle(img, rect, color, thickness=1, radius=8, lineType=cv.LINE_8)` | A box with rounded corners, in place. |
 | `drawHistogram(src, size=(512, 200))` | Plot the histogram as an image. |
 | `largestComponent(mask)`, `skeletonize(mask)`, `cutout(src, mask, feather=0)` | Keep the main object, thin to 1-pixel lines, cut out with transparency. |
 | `hexToBGR("#ff8800")`, `bgrToHex(color)` | Convert between hex colors and BGR tuples. |
 | `toGray(src)`, `toBGR(src)`, `toBGRA(src, alpha=None)` | Convert from any channel count; no error when the image is already in that format. |
-| `flattenAlpha(src, background=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
+| `flattenAlpha(src, fill=(255, 255, 255))` | Composite a transparent image onto a color or image, e.g. before saving as JPEG. |
 | `findContoursEx(image, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE, minArea=0, sort=True)` | `cv.findContours` for any image, largest first, small ones dropped. |
 | `binarize(src, method="otsu", invert=False)` | Any image to a 0/255 mask: Otsu, adaptive, triangle or a fixed threshold. |
 | `morphology(src, op, ksize=3, shape="ellipse", iterations=1)` | `cv.morphologyEx` by name (`"open"`, `"close"`, ...) with the kernel built for you. |
-| `maskBoundingRect(mask)`, `applyMask(src, mask, background=0)` | Box of the nonzero pixels; keep the masked pixels, fill the rest. |
-| `findLines(src, minLength=30, maxGap=10)`, `findCircles(src, minRadius=0, maxRadius=0)`, `detectBlobs(src, minArea=10)` | Hough lines and circles and blob detection as plain `(N, 4)` / `(N, 3)` arrays. |
-| `matchFeatures(src, dst, method="ORB", ratio=0.75)`, `alignImages(src, reference, motion="homography")` | Keypoint matching with the ratio test; register one image onto another. |
+| `maskBoundingRect(mask)`, `applyMask(src, mask, fill=0)` | Box of the nonzero pixels; keep the masked pixels, fill the rest. |
+| `findLines(src, minLength=30, maxGap=10)`, `findCircles(src, minRadius=0, maxRadius=0)`, `findBlobs(src, minArea=10)` | Hough lines and circles and blob detection as plain `(N, 4)` / `(N, 3)` arrays. |
+| `matchFeatures(src, reference, method="ORB", ratio=0.75)`, `alignImages(src, reference, motion="homography")` | Keypoint matching with the ratio test; register one image onto another. |
 | `fillHoles(mask, maxHoleArea=None)`, `removeSmallObjects(mask, minArea)` | Mask clean-up. |
 | `contourStats(contour)` | Area, perimeter, rect, center, aspect ratio, extent, solidity, circularity, equivalent diameter and orientation in one named tuple. |
 | `sortContours(contours, method="left-to-right")`, `filterContours(contours, minArea=0, ..., minCircularity=0)` | Reading order or size order; keep the shapes whose measurements are in range. |
-| `contoursToMask(contours, size)`, `cropContour(src, contour, margin=0, background=0, transparent=False)` | Contours back to a mask; crop one object with the outside blanked or transparent. |
+| `contoursToMask(contours, size)`, `cropContour(src, contour, margin=0, fill=0, transparent=False)` | Contours back to a mask; crop one object with the outside blanked or transparent. |
 | `approxContour(contour, epsilon=0.02)`, `mergeContours(contours)` | `cv.approxPolyDP` with a relative tolerance; one hull around several pieces. |
-| `drawContoursEx(src, contours, labels=False)`, `boundingRects(contours)`, `asContour(points)` | Each contour in its own color with labels; all boxes as an `(N, 4)` array; points to an OpenCV contour. |
-| `findTemplate(src, templ, threshold=0.8, maxCount=None)` | `cv.matchTemplate` as a list of non-overlapping matches `(x, y, w, h, score)`. |
+| `drawContoursEx(img, contours, colors=None, labels=False)`, `boundingRects(contours)`, `asContour(points)` | Each contour in its own color with labels, in place; all boxes as an `(N, 4)` array; points to an OpenCV contour. |
+| `findTemplate(src, templ, threshold=0.8, maxCount=None)` | `cv.matchTemplate` as an `(N, 5)` array of non-overlapping matches `(x, y, w, h, score)`. |
 | `resizeEx(src, width=None, height=None, interpolation=None)` | Resize keeping the aspect ratio; picks `INTER_AREA`/`INTER_LINEAR` automatically. |
-| `letterbox(src, size, color=0, interpolation=None)` | Fit into `(width, height)` keeping the aspect ratio and pad. Returns `(dst, scale, (left, top))`. |
+| `letterbox(src, size, color=0, interpolation=None)` | Fit into `(width, height)` keeping the aspect ratio and pad. Returns `Letterbox(image, scale, (left, top))`. |
 | `fourPointTransform(src, pts, size=None)` | Warp a quadrilateral (corners in any order) to an upright rectangle, e.g. a photographed document. |
 | `autoCanny(src, sigma=0.33)` | `cv.Canny` with thresholds chosen from the median brightness. |
 | `equalizeHistEx(src, clahe=False)` | `cv.equalizeHist` for color images too (on the Lab lightness), optionally CLAHE. |
@@ -354,7 +354,7 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `overlayMask(src, mask, color=(0, 0, 255), alpha=0.5)` | Tint the masked pixels, e.g. to show a segmentation. |
 | `drawBoxes(img, boxes, labels=None, colors=None)`, `drawPoints(img, points, labels=False)`, `drawGrid(img, step)` | Many boxes or points at once, each in its own color; a pixel grid. |
 | `distinctColors(count)` | BGR colors that are easy to tell apart, for classes, tracks or clusters. |
-| `putTextEx(src, text, org, fontPath, fontSize, color)` | Draw Unicode text (e.g. Korean) with a TrueType font. `org` is the top-left corner. |
+| `putTextEx(img, text, org, fontPath, fontSize, color)` | Draw Unicode text (e.g. Korean) with a TrueType font, in place like `cv.putText`. `org` is the top-left corner. |
 
 ### videoio
 

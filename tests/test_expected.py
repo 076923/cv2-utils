@@ -196,11 +196,13 @@ def test_matchTemplate_only_returns_a_score_map(scene):
 def test_findTemplate_finds_every_copy(scene):
     img, patch = scene
     matches = cv.findTemplate(img, patch)
-    assert sorted((x, y) for x, y, *_ in matches) == [(10, 20), (50, 90), (90, 30)]
-    assert all(w == 16 and h == 12 for _, _, w, h, _ in matches)
-    scores = [s for *_, s in matches]
+    assert matches.shape == (3, 5) and matches.dtype == np.float64
+    assert sorted((x, y) for x, y, *_ in matches.tolist()) == [(10, 20), (50, 90), (90, 30)]
+    assert (matches[:, 2] == 16).all() and (matches[:, 3] == 12).all()
+    scores = matches[:, 4].tolist()
     assert scores == sorted(scores, reverse=True)
     assert scores[0] == pytest.approx(1.0, abs=1e-4)
+    assert cv.findTemplate(img, patch, threshold=1.0, maxCount=0).shape == (0, 5)  # always an array
 
 
 def test_findTemplate_maxCount_and_threshold(scene):
@@ -213,7 +215,7 @@ def test_findTemplate_maxCount_and_threshold(scene):
 def test_findTemplate_other_methods(scene, method):
     img, patch = scene
     matches = cv.findTemplate(img, patch, threshold=0.95, method=method)
-    assert (10, 20) in [(x, y) for x, y, *_ in matches]
+    assert (10, 20) in [(x, y) for x, y, *_ in matches.tolist()]
 
 
 def test_findTemplate_mixed_channels(scene):
@@ -224,7 +226,14 @@ def test_findTemplate_mixed_channels(scene):
 
 @pytest.mark.parametrize(
     ("kwargs", "templ_shape"),
-    [({"method": cv2.TM_CCOEFF}, (4, 4)), ({"threshold": 1.5}, (4, 4)), ({}, (200, 10))],
+    [
+        ({"method": cv2.TM_CCOEFF}, (4, 4)),
+        ({"threshold": 1.5}, (4, 4)),
+        ({"threshold": float("nan")}, (4, 4)),
+        ({"maxCount": -1}, (4, 4)),
+        ({}, (200, 10)),
+        ({}, (0, 4)),
+    ],
 )
 def test_findTemplate_validation(scene, kwargs, templ_shape):
     img, _ = scene

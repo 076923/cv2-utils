@@ -34,7 +34,7 @@ from .contour import (
     mergeContours,
     sortContours,
 )
-from .detect import detectBlobs, findCircles, findLines
+from .detect import findBlobs, findCircles, findLines
 from .document import (
     detectPage,
     detectTextBlocks,
@@ -91,7 +91,7 @@ from .palette import (
 )
 from .puttext import putTextEx
 from .quality import diffMask, hashDistance, imageHash, sharpnessScore, ssim
-from .resize import letterbox, resizeEx
+from .resize import Letterbox, letterbox, resizeEx
 from .stats import (
     ImageStats,
     brightnessScore,
@@ -143,6 +143,7 @@ __all__ = [
     "ContourStats",
     "FeatureMatches",
     "ImageStats",
+    "Letterbox",
     "addNoise",
     "adjustBrightnessContrast",
     "adjustHSV",
@@ -176,7 +177,6 @@ __all__ = [
     "cutout",
     "darkenColor",
     "deskew",
-    "detectBlobs",
     "detectPage",
     "detectTextBlocks",
     "detectTextLines",
@@ -211,6 +211,7 @@ __all__ = [
     "exposureScore",
     "fillHoles",
     "filterContours",
+    "findBlobs",
     "findCircles",
     "findContoursEx",
     "findLines",

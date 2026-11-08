@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["check_color", "check_finite", "check_image_not_empty"]
+__all__ = ["check_channels", "check_color", "check_finite", "check_image_not_empty"]
 
 
 def check_finite(name: str, value: float, *, positive: bool = False, nonnegative: bool = False) -> None:
@@ -41,3 +41,15 @@ def check_image_not_empty(name: str, image: np.ndarray) -> None:
     """Raise ``ValueError`` for an image without pixels (OpenCV would fail with an assertion from its C++ code)."""
     if image.size == 0:
         raise ValueError(f"{name} must not be empty, got shape {image.shape}")
+
+
+def check_channels(name: str, image: np.ndarray) -> int:
+    """Return the channel count (1, 3 or 4) of a grayscale, BGR or BGRA image, or raise ``ValueError``.
+
+    Shared by every function that accepts "any image": a 2-D array counts as one channel, and anything else
+    (a 1-D array, a 2-channel image, a batch) is rejected with a message naming the argument.
+    """
+    channels = 1 if image.ndim == 2 else int(image.shape[2]) if image.ndim == 3 else 0
+    if channels not in (1, 3, 4):
+        raise ValueError(f"{name} must have 1, 3 or 4 channels, got shape {image.shape}")
+    return channels

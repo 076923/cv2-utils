@@ -8,14 +8,14 @@ import numpy as np
 from .._validate import check_color, check_finite, check_image_not_empty
 
 __all__ = [
-    "centerCrop",
-    "cropEx",
+    "cropCenter",
+    "cropRect",
     "cropToContent",
     "inRangeEx",
 ]
 
 
-def cropEx(
+def cropRect(
     src: np.ndarray,
     rect: tuple[int, int, int, int],
     margin: int = 0,
@@ -34,26 +34,33 @@ def cropEx(
             Otherwise the result has exactly the box size, and the parts outside the image are filled with this color.
 
     Returns:
-        A new array (not a view of ``src``). It is empty (size 0) when the box is entirely outside the image and
-        ``fill`` is ``None``.
+        A new array (not a view of ``src``).
 
     Raises:
-        ValueError: If the box (after ``margin``) has no area.
+        ValueError: If ``src`` is empty, ``rect`` is not finite, the box (after ``margin``) has no area, or the box
+            lies entirely outside the image.
     """
-    x, y, w, h = (int(v) for v in rect)
+    check_image_not_empty("src", src)
+    values = [float(v) for v in rect]
+    if len(values) != 4:
+        raise ValueError(f"rect must be (x, y, width, height), got {rect!r}")
+    for value in values:
+        check_finite("rect", value)
+    x, y, w, h = (int(v) for v in values)
     x, y, w, h = x - margin, y - margin, w + 2 * margin, h + 2 * margin
     if w <= 0 or h <= 0:
-        raise ValueError(f"the box has no area: {(x, y, w, h)}")
+        raise ValueError(f"rect has no area after margin={margin}: {(x, y, w, h)}")
 
     height, width = src.shape[:2]
     x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + w, width), min(y + h, height)
+    if x0 >= x1 or y0 >= y1:
+        raise ValueError(f"rect {(x, y, w, h)} lies outside the image of size {width}x{height}")
     if fill is None:
-        return src[y0 : max(y0, y1), x0 : max(x0, x1)].copy()
+        return src[y0:y1, x0:x1].copy()
 
     out = np.empty((h, w, *src.shape[2:]), dtype=src.dtype)
     out[...] = fill  # a scalar, or one value per channel
-    if x0 < x1 and y0 < y1:
-        out[y0 - y : y1 - y, x0 - x : x1 - x] = src[y0:y1, x0:x1]
+    out[y0 - y : y1 - y, x0 - x : x1 - x] = src[y0:y1, x0:x1]
     return out
 
 
@@ -115,13 +122,17 @@ def inRangeEx(src: np.ndarray, lowerb: Sequence[float], upperb: Sequence[float])
         Single-channel mask (0 or 255).
 
     Raises:
-        ValueError: If ``src`` does not have 3 channels or the bounds do not have 3 values.
+        ValueError: If ``src`` does not have 3 channels or is empty, the bounds do not have 3 values, or a bound
+            is not finite.
     """
     if src.ndim != 3 or src.shape[2] != 3:
         raise ValueError(f"src must be a 3-channel (HSV) image, got shape {src.shape}")
+    check_image_not_empty("src", src)
     if len(lowerb) != 3 or len(upperb) != 3:
         raise ValueError("lowerb and upperb must have 3 values (h, s, v)")
     lo, hi = tuple(float(v) for v in lowerb), tuple(float(v) for v in upperb)
+    check_color("lowerb", list(lo))
+    check_color("upperb", list(hi))
     if lo[0] <= hi[0]:
         mask: np.ndarray = cv2.inRange(src, lo, hi)
         return mask
@@ -132,7 +143,7 @@ def inRangeEx(src: np.ndarray, lowerb: Sequence[float], upperb: Sequence[float])
     return combined
 
 
-def centerCrop(src: np.ndarray, size: tuple[int, int] | int, fill: float | Sequence[float] | None = None) -> np.ndarray:
+def cropCenter(src: np.ndarray, size: tuple[int, int] | int, fill: float | Sequence[float] | None = None) -> np.ndarray:
     """Crop ``size`` ``(width, height)`` from the middle of the image (the usual square crop for a classifier).
 
     Args:
@@ -152,4 +163,4 @@ def centerCrop(src: np.ndarray, size: tuple[int, int] | int, fill: float | Seque
     if width < 1 or height < 1:
         raise ValueError(f"size must be positive, got {size}")
     h, w = src.shape[:2]
-    return cropEx(src, ((w - width) // 2, (h - height) // 2, width, height), fill=fill)
+    return cropRect(src, ((w - width) // 2, (h - height) // 2, width, height), fill=fill)

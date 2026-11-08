@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from .._validate import check_image_not_empty
+
 __all__ = ["imshowEx", "imshowInline"]
 
 
@@ -29,8 +31,9 @@ def imshowEx(winname: str, img: np.ndarray, maxSize: tuple[int, int] = (1280, 72
         maxSize: Largest displayed size, as ``(width, height)``.
 
     Raises:
-        ValueError: If ``maxSize`` is not positive.
+        ValueError: If ``img`` is empty or ``maxSize`` is not positive.
     """
+    check_image_not_empty("img", img)
     cv2.imshow(winname, _fit(img, maxSize))
 
 
@@ -47,8 +50,9 @@ def imshowInline(img: np.ndarray, maxSize: tuple[int, int] | None = None, ext: s
 
     Raises:
         ImportError: If IPython is not installed (Jupyter always provides it).
-        ValueError: If the image cannot be encoded.
+        ValueError: If ``img`` is empty or cannot be encoded.
     """
+    check_image_not_empty("img", img)
     try:
         from IPython.display import Image, display
     except ImportError as e:

@@ -41,11 +41,11 @@ def main() -> None:
     _write("rotateEx_45.png", cv.rotateEx(rot, 45))
     _write("rotateEx_30_scale0.5.png", cv.rotateEx(rot, 30, scale=0.5))
     _write("gammaCorrection_2.2.png", cv.gammaCorrection(rot, 2.2))
-    _write("DHEdge.png", cv.DHEdge(gray))
+    _write("boldEdges.png", cv.boldEdges(gray))
 
     dbs = cv2.imread(str(DATA / "dbscan_src.png"))
-    maps, labels = cv.DBSCAN(dbs, 1.7, 2)
-    _write("drawDBSCAN.png", cv.drawDBSCAN(dbs, maps, labels))
+    maps, _ = cv.dbscanColors(dbs, 1.7, 2)
+    _write("drawClusters.png", cv.drawClusters(dbs, maps))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 ---
-description: "API reference for cv2u: imreadEx, imwriteEx, toPillow, imencodeBase64, readFrames, writeVideo, imshowInline, resizeEx, letterbox, drawLabel, overlayMask, cropEx, montage, equalizeHistEx and more."
+description: "API reference for cv2u: imreadEx, imwriteEx, toPillow, imencodeBase64, readFrames, writeVideo, imshowInline, resizeEx, letterbox, drawLabel, overlayMask, cropRect, montage, equalizeHistEx and more."
 ---
 
 # API reference
@@ -43,9 +43,9 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ### Regions
 
-::: cv2u.core.roi.cropEx
+::: cv2u.core.roi.cropRect
 
-::: cv2u.core.roi.centerCrop
+::: cv2u.core.roi.cropCenter
 
 ::: cv2u.core.roi.cropToContent
 
@@ -79,13 +79,15 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.extension.gammaCorrection
 
-::: cv2u.core.extension.DHEdge
+::: cv2u.core.extension.boldEdges
 
 ### Clustering
 
 `peakColors` (cv2u's own method), `kmeansColors`, `dominantColors` and `colorQuantize` need nothing else.
-`meanShiftColors`, `DBSCAN` and `clusterPoints` require the `cluster` extra:
+`meanShiftColors`, `dbscanColors` and `clusterPoints` require the `cluster` extra:
 `pip install "python-opencv-utils[cluster]"`.
+
+::: cv2u.core.cluster.Clusters
 
 ::: cv2u.core.cluster.dominantColors
 
@@ -97,9 +99,9 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.cluster.meanShiftColors
 
-::: cv2u.core.cluster.DBSCAN
+::: cv2u.core.cluster.dbscanColors
 
-::: cv2u.core.cluster.drawDBSCAN
+::: cv2u.core.cluster.drawClusters
 
 ::: cv2u.core.cluster.clusterPoints
 
@@ -115,7 +117,7 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgcodecs.files.imwriteAll
 
-::: cv2u.imgcodecs.urlread.urlread
+::: cv2u.imgcodecs.url.imreadUrl
 
 ::: cv2u.imgcodecs.convert.toPillow
 
@@ -227,13 +229,15 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgproc.detect.findCircles
 
-::: cv2u.imgproc.detect.detectBlobs
+::: cv2u.imgproc.detect.findBlobs
 
 ### Geometry and filters
 
 ::: cv2u.imgproc.resize.resizeEx
 
 ::: cv2u.imgproc.resize.letterbox
+
+::: cv2u.imgproc.resize.Letterbox
 
 ::: cv2u.imgproc.geometry.fourPointTransform
 

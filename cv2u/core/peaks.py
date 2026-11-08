@@ -16,10 +16,12 @@ linear in the number of pixels.
 """
 
 import itertools
-import math
 
 import cv2
 import numpy as np
+
+from .._validate import check_finite, check_image_not_empty
+from .cluster import Clusters
 
 __all__ = ["peakColors"]
 
@@ -94,7 +96,7 @@ def peakColors(
     sigma: float = 0.75,
     minShare: float = 0.01,
     minRegion: int = 0,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Clusters:
     """Cluster the pixel colors at the peaks of the color histogram, finding the number of colors by itself.
 
     cv2u's own method (see the module documentation for the algorithm). Compared with the other color clusterings:
@@ -113,20 +115,19 @@ def peakColors(
             such as thin text.
 
     Returns:
-        ``(maps, centers)`` as for :func:`kmeansColors`: ``maps`` holds labels ``0 .. n-1``, ordered from the most
-        to the least common color, and ``centers`` the mean BGR color of each cluster.
+        :class:`Clusters` ``(maps, centers)`` as for :func:`kmeansColors`: ``maps`` holds labels ``0 .. n-1``,
+        ordered from the most to the least common color, and ``centers`` the mean BGR color of each cluster.
 
     Raises:
-        ValueError: If ``src`` is not an 8-bit BGR image, or a parameter is out of range.
+        ValueError: If ``src`` is not an 8-bit BGR image or is empty, or a parameter is out of range.
     """
     if src.dtype != np.uint8 or src.ndim != 3 or src.shape[2] != 3:
         raise ValueError(f"src must be an 8-bit BGR image, got shape {src.shape} and dtype {src.dtype}")
     if not 2 <= bins <= 64:
         raise ValueError(f"bins must be between 2 and 64, got {bins}")
-    if src.size == 0:
-        raise ValueError("src must not be empty")
-    if not math.isfinite(sigma) or sigma < 0:
-        raise ValueError(f"sigma must be a non-negative finite number, got {sigma}")
+    check_image_not_empty("src", src)
+    check_finite("sigma", sigma, nonnegative=True)
+    check_finite("minShare", minShare)
     if not 0.0 <= minShare < 1.0:
         raise ValueError(f"minShare must be in [0, 1), got {minShare}")
     if minRegion < 0:
@@ -172,4 +173,4 @@ def peakColors(
     totals = np.bincount(label_flat, minlength=count)
     sums = np.stack([np.bincount(label_flat, weights=pixels[:, c], minlength=count) for c in range(3)], axis=1)
     centers = np.clip(np.rint(sums / np.maximum(totals, 1)[:, None]), 0, 255).astype(np.uint8)
-    return maps, centers
+    return Clusters(maps, centers)

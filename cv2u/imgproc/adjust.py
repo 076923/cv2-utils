@@ -79,7 +79,7 @@ def adjustHSV(src: np.ndarray, hue: float = 0, saturation: float = 1.0, value: f
     return _join_alpha(cv2.cvtColor(adjusted, cv2.COLOR_HSV2BGR), alpha)
 
 
-def autoContrast(src: np.ndarray, clip: float = 0.01, perChannel: bool = False) -> np.ndarray:
+def autoContrast(src: np.ndarray, clip: float = 0.01, *, perChannel: bool = False) -> np.ndarray:
     """Stretch the levels so the darkest pixels become black and the brightest white (like "Auto Levels").
 
     ``cv.normalize(..., cv.NORM_MINMAX)`` uses the exact minimum and maximum, so a single noisy pixel prevents any
@@ -94,6 +94,7 @@ def autoContrast(src: np.ndarray, clip: float = 0.01, perChannel: bool = False) 
     Raises:
         ValueError: If ``src`` is not 8-bit or is empty, or ``clip`` is outside ``[0, 0.5)``.
     """
+    check_finite("clip", clip)
     if not 0.0 <= clip < 0.5:
         raise ValueError(f"clip must be in [0, 0.5), got {clip}")
     color, alpha = _split_alpha(src)

@@ -10,7 +10,7 @@ from .meta import (
     imreadOriented,
     imreadResized,
 )
-from .urlread import urlread
+from .url import imreadUrl
 
 __all__ = [
     "ImageInfo",
@@ -26,9 +26,9 @@ __all__ = [
     "imreadEx",
     "imreadOriented",
     "imreadResized",
+    "imreadUrl",
     "imwriteAll",
     "imwriteEx",
     "listImages",
     "toPillow",
-    "urlread",
 ]

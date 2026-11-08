@@ -51,9 +51,27 @@ def test_cropRotatedRect_extracts_the_box(angle):
     assert crop[2:-2, 2:-2].min() > 200  # the inside is all box, no background
 
 
-def test_cropRotatedRect_validation():
+def test_cropRotatedRect_fills_the_outside_with_borderValue():
+    img = np.full((20, 20), 200, np.uint8)
+    crop = cv.cropRotatedRect(img, ((2, 10), (10, 4), 0))  # half of the box lies left of the image
+    assert crop.shape == (4, 10)
+    assert crop[:, 0].max() == 0  # BORDER_CONSTANT with 0 by default, not a replicated edge
+    assert crop[:, -1].min() == 200
+    assert cv.cropRotatedRect(img, ((2, 10), (10, 4), 0), borderValue=7)[0, 0] == 7
+
+
+@pytest.mark.parametrize(
+    ("src", "rect"),
+    [
+        (np.zeros((10, 10), np.uint8), ((5, 5), (0.2, 4), 0)),
+        (np.zeros((0, 10), np.uint8), ((5, 5), (4, 4), 0)),
+        (np.zeros((10, 10), np.uint8), ((float("nan"), 5), (4, 4), 0)),
+        (np.zeros((10, 10), np.uint8), ((5, 5), (4, 4), float("inf"))),
+    ],
+)
+def test_cropRotatedRect_validation(src, rect):
     with pytest.raises(ValueError):
-        cv.cropRotatedRect(np.zeros((10, 10), np.uint8), ((5, 5), (0.2, 4), 0))
+        cv.cropRotatedRect(src, rect)
 
 
 # --- deskew ----------------------------------------------------------------------
@@ -138,7 +156,7 @@ def test_flattenAlpha_composites_on_the_background():
     assert tuple(out[1, 0]) == (127, 127, 127)
     assert tuple(cv.flattenAlpha(bgra, (0, 255, 0))[0, 1]) == (0, 255, 0)
     background = np.full((2, 2), 10, np.uint8)
-    assert tuple(cv.flattenAlpha(bgra, background)[0, 1]) == (10, 10, 10)
+    assert tuple(cv.flattenAlpha(bgra, fill=background)[0, 1]) == (10, 10, 10)
 
 
 def test_flattenAlpha_other_inputs():
@@ -155,7 +173,7 @@ def test_flattenAlpha_other_inputs():
 
 @pytest.mark.parametrize("method", ["difference", "average", "perceptual"])
 def test_imageHash_near_duplicates_are_close(method):
-    img = cv.makeGradient((120, 160, 3), (0, 0, 0), (255, 200, 100))
+    img = cv.makeGradient((160, 120), (0, 0, 0), (255, 200, 100))
     cv.circle(img, (60, 50), 25, (0, 0, 255), -1)
     cv.rectangle(img, (100, 70), (150, 110), (255, 255, 0), -1)
     resized = cv.resize(img, (80, 60), interpolation=cv.INTER_AREA)
@@ -212,7 +230,7 @@ def test_drawRoundedRectangle_outline_and_fill():
     assert img[25, 35] == 0  # outline only
 
     filled = np.zeros((60, 80, 3), np.uint8)
-    cv.drawRoundedRectangle(filled, (10, 10, 50, 30), (0, 255, 0), cv.FILLED, cv.LINE_AA, radius=8)
+    cv.drawRoundedRectangle(filled, (10, 10, 50, 30), (0, 255, 0), cv.FILLED, 8, cv.LINE_AA)
     assert tuple(filled[25, 35]) == (0, 255, 0)
     assert tuple(filled[10, 10]) == (0, 0, 0)
     square = np.zeros((60, 80), np.uint8)
@@ -228,6 +246,8 @@ def test_drawRoundedRectangle_small_box_and_validation():
         cv.drawRoundedRectangle(img, (0, 0, 0, 5), 255)
     with pytest.raises(ValueError):
         cv.drawRoundedRectangle(img, (0, 0, 5, 5), 255, radius=-1)
+    with pytest.raises(ValueError, match="empty"):
+        cv.drawRoundedRectangle(np.zeros((0, 5), np.uint8), (0, 0, 5, 5), 255)
 
 
 # --- pixelate --------------------------------------------------------------------

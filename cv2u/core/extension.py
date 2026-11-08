@@ -6,10 +6,10 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .._validate import check_finite
+from .._validate import check_finite, check_image_not_empty
 
 __all__ = [
-    "DHEdge",
+    "boldEdges",
     "cartesianToPolar",
     "centerPoint",
     "gammaCorrection",
@@ -24,24 +24,42 @@ def gammaCorrection(src: np.ndarray, gamma: float = 1.0) -> np.ndarray:
     Each value ``v`` becomes ``255 * (v / 255) ** (1 / gamma)``: ``gamma > 1`` brightens the image,
     ``gamma < 1`` darkens it, and ``gamma == 1`` leaves it unchanged.
 
+    Args:
+        src: 8-bit image with any number of channels.
+        gamma: Gamma value; ``1`` leaves the image unchanged.
+
     Raises:
-        ValueError: If ``src`` is not 8-bit or ``gamma`` is not positive.
+        ValueError: If ``src`` is not 8-bit or is empty, or ``gamma`` is not a positive finite number.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
+    check_image_not_empty("src", src)
     check_finite("gamma", gamma, positive=True)
     table = (np.arange(256) / 255.0) ** (1.0 / gamma) * 255
     dst: np.ndarray = cv2.LUT(src, np.clip(table, 0, 255).astype(np.uint8))
     return dst
 
 
-def centerPoint(contour: np.ndarray) -> tuple[float, float]:
-    """Return the centroid ``(x, y)`` of a contour.
+def centerPoint(contour: ArrayLike) -> tuple[float, float]:
+    """Return the centroid ``(x, y)`` of a contour from its image moments.
+
+    The ``m10 / m00``, ``m01 / m00`` arithmetic after ``cv.moments``. :func:`contourStats` returns the same point
+    as ``center`` together with the other measurements (and falls back to the box center for zero-area contours).
+
+    Args:
+        contour: Contour of shape ``(N, 1, 2)`` or ``(N, 2)``, as from ``cv.findContours``.
 
     Raises:
-        ValueError: If the contour has zero area.
+        ValueError: If the contour has no points, is not finite, or has zero area (the centroid is undefined).
     """
-    moment = cv2.moments(contour)
+    points = np.asarray(contour, dtype=np.float64)
+    if points.size == 0:
+        raise ValueError("contour must not be empty")
+    if points.shape[-1] != 2:
+        raise ValueError(f"contour must have 2 coordinates (x, y) per point, got shape {points.shape}")
+    if not np.all(np.isfinite(points)):
+        raise ValueError("contour must be finite")
+    moment = cv2.moments(points.reshape(-1, 1, 2).astype(np.float32))
     if moment["m00"] == 0:
         raise ValueError("contour has zero area; centroid is undefined")
     return moment["m10"] / moment["m00"], moment["m01"] / moment["m00"]
@@ -103,20 +121,25 @@ _GRADIENT_KERNEL = np.ones((3, 3), np.uint8)
 _SHARPEN_KERNEL = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]], dtype=np.float32)
 
 
-def DHEdge(src: np.ndarray) -> np.ndarray:
+def boldEdges(src: np.ndarray) -> np.ndarray:
     """Bold, high-contrast edge map for drawings and logos.
 
     The 3x3 morphological gradient (``cv.morphologyEx(src, cv.MORPH_GRADIENT, ...)``) is sharpened and then
-    contrast-stretched, so edges come out as thick white lines on black.
+    contrast-stretched, so edges come out as thick white lines on black. ``cv.Canny`` gives thin, binary edges
+    instead.
 
     Args:
         src: 8-bit image with 1 or 3 channels. Color images are processed per channel.
 
+    Returns:
+        An 8-bit image with the shape of ``src``.
+
     Raises:
-        ValueError: If ``src`` is not 8-bit.
+        ValueError: If ``src`` is not 8-bit or is empty.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
+    check_image_not_empty("src", src)
     gradient = cv2.morphologyEx(src, cv2.MORPH_GRADIENT, _GRADIENT_KERNEL)
     sharpen = cv2.filter2D(gradient, -1, _SHARPEN_KERNEL)
     return np.clip(math.pi * sharpen.astype(np.float64) - 255, 0, 255).astype(np.uint8)

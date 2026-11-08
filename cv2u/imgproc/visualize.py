@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from .._validate import check_color, check_finite, check_image_not_empty
+from .._validate import check_channels, check_color, check_finite, check_image_not_empty
 from ..core.compose import hconcatEx, vconcatEx
 from .color import distinctColors, toBGR, toBGRA, toGray
 from .draw import Color, _bgr, _luminance
@@ -44,16 +44,11 @@ ankles)."""
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
-def _channels(img: np.ndarray) -> int:
-    return 1 if img.ndim == 2 else int(img.shape[2])
-
-
 def _check_uint8(name: str, img: np.ndarray) -> None:
     if img.dtype != np.uint8:
         raise ValueError(f"{name} must be an 8-bit (uint8) image, got dtype {img.dtype}")
     check_image_not_empty(name, img)
-    if img.ndim not in (2, 3) or _channels(img) not in (1, 3, 4):
-        raise ValueError(f"{name} must have 1, 3 or 4 channels, got shape {img.shape}")
+    check_channels(name, img)
 
 
 def _check_unit(name: str, value: float) -> None:
@@ -66,7 +61,7 @@ def _draw_color(img: np.ndarray, color: Color) -> Color:
     """A color usable by ``cv2`` drawing on ``img`` (luminance for grayscale images)."""
     values = [float(color)] if isinstance(color, (int, float)) else [float(c) for c in color]
     check_color("color", values, img.dtype)
-    if _channels(img) == 1 and not isinstance(color, (int, float)):
+    if check_channels("img", img) == 1 and not isinstance(color, (int, float)):
         return _luminance(color)
     return color
 
@@ -191,7 +186,7 @@ def heatmap(
         colored = cv2.resize(colored, (width, height), interpolation=cv2.INTER_LINEAR)
     base = toBGR(src)
     blended: np.ndarray = cv2.addWeighted(base, 1 - alpha, colored, alpha, 0)
-    if _channels(src) == 4:
+    if check_channels("src", src) == 4:
         blended = np.dstack([blended, src[..., 3]])
     return blended
 
@@ -396,7 +391,7 @@ def drawRotatedBoxes(
             y = text_h + baseline + 2
         cv2.rectangle(img, (x, y - text_h - baseline), (x + text_w + 4, y + 2), color, cv2.FILLED)
         level = 0 if _luminance(color) > 140 else 255
-        text_color: Color = level if _channels(img) == 1 else (level, level, level)
+        text_color: Color = level if check_channels("img", img) == 1 else (level, level, level)
         cv2.putText(img, labels[i], (x + 2, y), _FONT, fontScale, text_color, 1, cv2.LINE_AA)
     return img
 
@@ -952,11 +947,11 @@ def blendImages(images: Sequence[np.ndarray], weights: Sequence[float] | None = 
         raise ValueError("weights must not all be zero")
     first = images[0]
     height, width = first.shape[:2]
-    channels = _channels(first)
+    channels = check_channels("images", first)
     convert = {1: toGray, 3: toBGR, 4: toBGRA}[channels]
     acc = np.zeros(first.shape, np.float32)
     for img, w in zip(images, weights, strict=True):
-        if _channels(img) != channels:
+        if check_channels("images", img) != channels:
             img = convert(img)
         if img.shape[:2] != (height, width):
             img = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)

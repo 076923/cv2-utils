@@ -78,8 +78,8 @@ def test_findContoursEx_vs_findContours(mask):
     )
 
 
-def test_cropEx_vs_slicing(bgr):
-    _assert_close("cropEx", lambda: cv.cropEx(bgr, (100, 100, 800, 600)), lambda: bgr[100:700, 100:900].copy())
+def test_cropRect_vs_slicing(bgr):
+    _assert_close("cropRect", lambda: cv.cropRect(bgr, (100, 100, 800, 600)), lambda: bgr[100:700, 100:900].copy())
 
 
 def test_padToMultiple_vs_copyMakeBorder(bgr):

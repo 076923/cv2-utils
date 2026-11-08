@@ -94,7 +94,7 @@ def fromPillow(image: Image.Image) -> np.ndarray:
     return cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
 
 
-def imencodeBase64(img: np.ndarray, ext: str = ".png", params: Sequence[int] = (), dataUri: bool = False) -> str:
+def imencodeBase64(img: np.ndarray, ext: str = ".png", params: Sequence[int] = (), *, dataUri: bool = False) -> str:
     """Encode an image as a base64 string, e.g. for JSON APIs or HTML ``<img src=...>``.
 
     Args:
@@ -104,8 +104,9 @@ def imencodeBase64(img: np.ndarray, ext: str = ".png", params: Sequence[int] = (
         dataUri: Return a data URI (``"data:image/png;base64,..."``) instead of the bare base64 text.
 
     Raises:
-        ValueError: If the image cannot be encoded in this format.
+        ValueError: If ``img`` is empty or cannot be encoded in this format.
     """
+    check_image_not_empty("img", img)
     try:
         ok, buffer = cv2.imencode(ext, img, list(params))
     except cv2.error as e:

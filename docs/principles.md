@@ -27,7 +27,7 @@ Never re-implement something OpenCV already does well.
 | `toPillow`, `fromPillow` | Converting to/from Pillow needs channel reordering, and `np.asarray` gets palette, CMYK, premultiplied-alpha and big-endian 16-bit images wrong. |
 | `imencodeBase64`, `imdecodeBase64` | Web APIs exchange images as base64 or data URIs; OpenCV only encodes to bytes. |
 | `drawLabel`, `overlayMask` | A detector-style labeled box or a translucent mask takes `getTextSize` math and blending code. |
-| `cropEx` | Slicing with boxes that extend outside the image silently returns wrong or empty regions. |
+| `cropRect` | Slicing with boxes that extend outside the image silently returns wrong or empty regions. |
 | `montage` | No function arranges many images in a grid. |
 | `equalizeHistEx` | `cv.equalizeHist` rejects color images. |
 | `inRangeEx` | `cv.inRange` silently selects nothing for hue ranges that wrap around, such as red. |
@@ -56,21 +56,21 @@ Never re-implement something OpenCV already does well.
 | `boxIoU` | Box overlap is computed only inside `cv.dnn.NMSBoxes`; matching and tracking code rewrites it. |
 | `nms`, `xywhToXyxy`, `xyxyToXywh`, `clipBoxes`, `scaleBoxes`, `expandBoxes` | `cv.dnn.NMSBoxes` wants lists and returns a tuple when empty; mapping boxes back through a letterbox, clipping and padding them are the same arithmetic in every detector script. |
 | `binarize`, `morphology` | `cv.threshold` wants 8-bit grayscale and returns a tuple, adaptive thresholding is a separate function; every `morphologyEx` call starts with `getStructuringElement`. |
-| `findLines`, `findCircles`, `detectBlobs` | `cv.HoughLinesP` / `cv.HoughCircles` return `None` or `(N, 1, 4)` / `(1, N, 3)` and need an edge or blurred image first; `SimpleBlobDetector` takes a `Params` object with a dozen fields. |
+| `findLines`, `findCircles`, `findBlobs` | `cv.HoughLinesP` / `cv.HoughCircles` return `None` or `(N, 1, 4)` / `(1, N, 3)` and need an edge or blurred image first; `SimpleBlobDetector` takes a `Params` object with a dozen fields. |
 | `matchFeatures`, `alignImages` | Detector, matcher norm, `knnMatch`, ratio test, keypoint unpacking and `findHomography` with RANSAC are the same twelve lines before every registration. |
-| `maskBoundingRect`, `applyMask`, `centerCrop` | `cv.boundingRect(cv.findNonZero(mask))` fails on empty or color masks; `cv.bitwise_and` with a mask only gives black; a center crop is index arithmetic. |
+| `maskBoundingRect`, `applyMask`, `cropCenter` | `cv.boundingRect(cv.findNonZero(mask))` fails on empty or color masks; `cv.bitwise_and` with a mask only gives black; a center crop is index arithmetic. |
 | `drawBoxes`, `drawPoints`, `drawGrid`, `distinctColors` | Drawing many detections or keypoints in distinct colors, with labels, is a loop everyone writes; OpenCV has no palette. |
 | `pixelate`, `drawRoundedRectangle` | Mosaic anonymization and rounded boxes take resize and arc arithmetic. |
 | `listImages`, `imreadAll`, `imwriteAll` | Collecting the image files of a folder (in natural order) is glob and sort boilerplate; `cv.imread` returns `None` silently, so a batch loop needs its own error handling. |
 | `mapTiles` | Running a fixed-input model over a large image is split, loop, merge and seam averaging every time. |
 | `readFrameAt` | Reading one frame means open, seek, read and release. |
 | `putTextEx` | `cv.putText` only has the Hershey fonts, which cover ASCII only. |
-| `urlread` | `cv.imread` cannot read from a URL. |
+| `imreadUrl` | `cv.imread` cannot read from a URL. |
 | `imcolor`, `imcolorLike`, `makeGradient` | There is no function to create a filled or gradient image. |
-| `gammaCorrection`, `centerPoint` | Lookup-table and image-moment boilerplate. |
+| `gammaCorrection`, `centerPoint`, `boldEdges` | Lookup-table, image-moment and morphological-gradient boilerplate. |
 | `dominantColors`, `colorQuantize`, `kmeansColors` | `cv.kmeans` needs reshaping, float conversion and criteria, and its results change from run to run (global RNG). |
 | `peakColors` | Automatic color clustering usually needs scikit-learn, samples the pixels and is slow; cv2u's own histogram-peak method needs neither. |
-| `meanShiftColors`, `DBSCAN`, `drawDBSCAN`, `clusterPoints` | OpenCV has no clustering that finds the number of groups by itself, for colors or for points. |
+| `meanShiftColors`, `dbscanColors`, `drawClusters`, `clusterPoints` | OpenCV has no clustering that finds the number of groups by itself, for colors or for points. |
 | `FLIP_MODE_*`, `DDEPTH_SAME`, `ALL_CONTOURS`, `REDUCE_TO_*`, `WAIT_FOREVER`, `KEY_*` | Parameters such as `flipCode`, `ddepth`, `contourIdx`, `dim` and `cv.waitKey` take magic numbers with no OpenCV constant (OpenCV's own constants like `cv.FILLED` are used as they are). |
 
 ## 2. Look like OpenCV
@@ -117,7 +117,8 @@ color quantization work without scikit-learn.
 
 ## 6. Change carefully
 
-Once a function is released, code that uses it should keep working:
+Once a function is released, code that uses it should keep working. 1.0.0 reset the API once (renames and
+signature changes without aliases; see the changelog); from 1.0 on the deprecation rule applies:
 
 - A renamed function keeps its old name as a deprecated alias that emits a `DeprecationWarning`
   for at least one minor release.

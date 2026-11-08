@@ -110,10 +110,35 @@ def test_colorQuantize(three_colors):
     assert len(np.unique(three_colors.reshape(-1, 3), axis=0)) > 3
 
 
-def test_kmeans_maps_work_with_drawDBSCAN(three_colors):
+def test_kmeans_maps_work_with_drawClusters(three_colors):
     maps, _ = cv.kmeansColors(three_colors, 3)
-    painted = cv.drawDBSCAN(three_colors, maps, maps.ravel())
+    painted = cv.drawClusters(three_colors, maps)
     assert len(np.unique(painted.reshape(-1, 3), axis=0)) == 3
+
+
+def test_clusterers_return_a_named_tuple(three_colors):
+    result = cv.kmeansColors(three_colors, 3)
+    assert isinstance(result, cv.Clusters)
+    assert result.maps is result[0] and result.centers is result[1]
+    assert result.maps.dtype == np.int32 and result.centers.dtype == np.uint8
+    assert isinstance(cv.peakColors(three_colors), cv.Clusters)
+
+
+def test_drawClusters_gray_and_noise():
+    gray = np.zeros((4, 6), np.uint8)
+    gray[:, 3:] = 200
+    gray[0, 0] = 77
+    maps = np.zeros((4, 6), np.int32)
+    maps[:, 3:] = 1
+    maps[0, 0] = -1  # noise keeps its own color
+    out = cv.drawClusters(gray, maps)
+    assert out.shape == gray.shape and out.dtype == np.uint8
+    assert out[0, 0] == 77 and out[1, 0] == 0 and out[0, 5] == 200
+    np.testing.assert_array_equal(cv.drawClusters(gray, np.full((4, 6), -1)), gray)
+    with pytest.raises(ValueError, match="maps"):
+        cv.drawClusters(gray, maps[:2])
+    with pytest.raises(ValueError, match="uint8"):
+        cv.drawClusters(gray.astype(np.float32), maps)
 
 
 def test_kmeans_functions_need_no_extra(monkeypatch, three_colors):
@@ -138,7 +163,7 @@ def test_meanShiftColors_finds_the_number_of_colors(noise):
     assert maps.shape == img.shape[:2]
     for color in (RED, GREEN, BLUE):
         assert any(_close(c, color) for c in centers), color
-    assert cv.drawDBSCAN(img, maps, maps.ravel()).shape == img.shape
+    assert cv.drawClusters(img, maps).shape == img.shape
 
 
 def test_meanShiftColors_bandwidth_controls_merging(three_colors):
@@ -169,28 +194,34 @@ def test_clusterPoints_groups_and_noise():
     pytest.importorskip("sklearn")
     points = [[0, 0], [1, 0], [0, 1], [50, 50], [51, 50], [200, 0]]
     labels = cv.clusterPoints(points, eps=3)
-    assert labels.shape == (6,)
-    assert labels[0] == labels[1] == labels[2] != 0
-    assert labels[3] == labels[4] != 0
+    assert labels.shape == (6,) and labels.dtype == np.int32
+    assert labels[0] == labels[1] == labels[2] >= 0
+    assert labels[3] == labels[4] >= 0
     assert labels[3] != labels[0]
-    assert labels[5] == 0  # isolated point is noise
+    assert labels[5] == -1  # isolated point is noise
 
 
 def test_clusterPoints_contour_input_and_minSamples():
     pytest.importorskip("sklearn")
     contour = np.array([[[0, 0]], [[1, 1]], [[100, 100]]], np.int32)
-    assert cv.clusterPoints(contour, eps=2, minSamples=1).tolist() == [1, 1, 2]
+    assert cv.clusterPoints(contour, eps=2, minSamples=1).tolist() == [0, 0, 1]
 
 
 def test_clusterPoints_validation():
     with pytest.raises(ValueError):
         cv.clusterPoints(np.zeros((0, 2)), eps=1)
+    with pytest.raises(ValueError, match="finite"):
+        cv.clusterPoints([[0, float("nan")]], eps=1)
+    with pytest.raises(ValueError, match="eps"):
+        cv.clusterPoints([[0, 0]], eps=0)
+    with pytest.raises(ValueError, match="minSamples"):
+        cv.clusterPoints([[0, 0]], eps=1, minSamples=0)
 
 
 @pytest.mark.parametrize(
     ("func", "args"),
     [
-        ("DBSCAN", (np.zeros((2, 2, 3), np.uint8), 1.0, 2)),
+        ("dbscanColors", (np.zeros((2, 2, 3), np.uint8), 1.0, 2)),
         ("meanShiftColors", (np.zeros((2, 2, 3), np.uint8),)),
         ("clusterPoints", ([[0, 0]], 1.0)),
     ],

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .._validate import check_finite, check_image_not_empty
+from .._validate import check_channels, check_finite, check_image_not_empty
 
 __all__ = [
     "ContourStats",
@@ -202,10 +202,14 @@ def filterContours(
         "minPerimeter": minPerimeter,
     }
     for name, value in limits.items():
-        if math.isnan(value) or value < 0:
+        if math.isnan(value):
+            raise ValueError(f"{name} must be a number, got {value}")
+        if value < 0:
             raise ValueError(f"{name} must not be negative, got {value}")
-    if minArea > maxArea or minAspectRatio > maxAspectRatio:
-        raise ValueError("a minimum must not exceed its maximum")
+    if minArea > maxArea:
+        raise ValueError(f"minArea must not exceed maxArea, got {minArea} > {maxArea}")
+    if minAspectRatio > maxAspectRatio:
+        raise ValueError(f"minAspectRatio must not exceed maxAspectRatio, got {minAspectRatio} > {maxAspectRatio}")
     kept = []
     for contour in contours:
         s = contourStats(contour)
@@ -236,7 +240,7 @@ def approxContour(contour: np.ndarray, epsilon: float = 0.02, closed: bool = Tru
         The simplified contour, shape ``(M, 1, 2)``.
 
     Raises:
-        ValueError: If ``epsilon`` is negative or not finite.
+        ValueError: If ``epsilon`` is negative or not finite, or the contour has no points or is not finite.
     """
     check_finite("epsilon", epsilon, nonnegative=True)
     contour = asContour(contour)
@@ -256,7 +260,7 @@ def mergeContours(contours: Sequence[np.ndarray]) -> np.ndarray:
         A contour of shape ``(M, 1, 2)``.
 
     Raises:
-        ValueError: If there are no contours.
+        ValueError: If there are no contours, or a contour has no points or is not finite.
     """
     if len(contours) == 0:
         raise ValueError("contours must not be empty")
@@ -305,7 +309,8 @@ def cropContour(
     src: np.ndarray,
     contour: np.ndarray,
     margin: int = 0,
-    background: float | Sequence[float] | None = 0,
+    fill: float | Sequence[float] | None = 0,
+    *,
     transparent: bool = False,
 ) -> np.ndarray:
     """Crop the bounding box of a contour, with the pixels outside the contour blanked out.
@@ -314,18 +319,19 @@ def cropContour(
         src: Image to crop (any dtype, 1, 3 or 4 channels).
         contour: Contour of shape ``(N, 1, 2)`` or ``(N, 2)``.
         margin: Extra pixels around the bounding box (clipped at the image border).
-        background: Value for the pixels outside the contour: a scalar or one value per channel. ``None`` keeps
-            the original pixels (a plain bounding-box crop).
-        transparent: Return BGRA with the outside transparent instead of filled with ``background``
+        fill: Value for the pixels outside the contour: a scalar or one value per channel (as ``fill`` in
+            :func:`cropRect` and :func:`applyMask`). ``None`` keeps the original pixels (a plain bounding-box crop).
+        transparent: Return BGRA with the outside transparent instead of filled with ``fill``
             (8-bit images only).
 
     Returns:
         The cropped image. Its size is the bounding box plus margins, clipped to the image.
 
     Raises:
-        ValueError: If ``margin`` is negative, ``src`` is empty, or ``transparent`` is used on a non-8-bit image.
+        ValueError: If ``src`` is empty, ``margin`` is negative, the contour has no points, is not finite or lies
+            outside the image, ``fill`` is not finite, or ``transparent`` is used on a non-8-bit image.
     """
-    from ..core.roi import cropEx
+    from ..core.roi import cropRect
     from .color import toBGRA
 
     check_image_not_empty("src", src)
@@ -333,92 +339,91 @@ def cropContour(
         raise ValueError(f"margin must not be negative, got {margin}")
     if transparent and src.dtype != np.uint8:
         raise ValueError(f"transparent output needs an 8-bit image, got dtype {src.dtype}")
+    if fill is not None:
+        for component in np.ravel(np.asarray(fill, dtype=np.float64)).tolist():
+            check_finite("fill", component)
     contour = asContour(contour)
     x, y, w, h = cv2.boundingRect(contour)
     x0, y0 = max(x - margin, 0), max(y - margin, 0)
     x1, y1 = min(x + w + margin, src.shape[1]), min(y + h + margin, src.shape[0])
     if x1 <= x0 or y1 <= y0:
         raise ValueError("the contour lies outside the image")
-    crop = cropEx(src, (x0, y0, x1 - x0, y1 - y0))
-    if background is None and not transparent:
+    crop = cropRect(src, (x0, y0, x1 - x0, y1 - y0))
+    if fill is None and not transparent:
         return crop
     mask = contoursToMask(contour - (x0, y0), (x1 - x0, y1 - y0))
     if transparent:
         out = toBGRA(crop)
         out[..., 3] = (out[..., 3].astype(np.uint16) * mask // 255).astype(np.uint8)
         return out
-    fill = np.asarray(background, dtype=crop.dtype)
-    if crop.ndim == 3 and fill.ndim == 0:
-        fill = np.full(crop.shape[2], fill, dtype=crop.dtype)
-    crop[mask == 0] = fill
+    value = np.asarray(fill, dtype=crop.dtype)
+    if crop.ndim == 3 and value.ndim == 0:
+        value = np.full(crop.shape[2], value, dtype=crop.dtype)
+    crop[mask == 0] = value
     return crop
 
 
 def drawContoursEx(
-    src: np.ndarray,
+    img: np.ndarray,
     contours: Sequence[np.ndarray],
-    thickness: int = 2,
     colors: Sequence[Sequence[float]] | None = None,
     labels: bool | Sequence[str] = False,
+    thickness: int = 2,
     fontScale: float = 0.5,
 ) -> np.ndarray:
     """Draw every contour in its own color, optionally with an index or text label at its centroid.
 
     For checking what a segmentation found. ``cv.drawContours`` draws them all in one color, so touching shapes
-    cannot be told apart.
+    cannot be told apart. Like ``cv.drawContours``, this draws **in place** and returns ``img``.
 
     Args:
-        src: 8-bit grayscale, BGR or BGRA image. It is not modified; grayscale input is converted to BGR.
+        img: 8-bit grayscale, BGR or BGRA image to draw on. On a grayscale image the luminance of each color
+            is used (convert with :func:`toBGR` first to see the colors).
         contours: Contours as from :func:`findContoursEx`.
-        thickness: Outline thickness, or ``cv.FILLED``.
-        colors: BGR colors, cycled through. By default a fixed palette of 12 distinct colors.
+        colors: BGR colors, cycled through. By default :func:`distinctColors`.
         labels: ``True`` writes the index of each contour at its centroid; a sequence gives the texts.
+        thickness: Outline thickness, or ``cv.FILLED``.
+        fontScale: Hershey font size for the labels.
 
     Returns:
-        A BGR (or BGRA) copy with the drawings.
+        ``img``, with the contours drawn on it.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit or ``labels`` has a different length than ``contours``.
+        ValueError: If ``img`` is not 8-bit, is empty or has an unsupported channel count, a contour has no points
+            or is not finite, ``fontScale`` is not positive, or ``labels`` or ``colors`` has a different length
+            than ``contours``.
     """
-    from .color import toBGR
+    from .color import distinctColors
 
-    if src.dtype != np.uint8:
-        raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
-    check_image_not_empty("src", src)
+    if img.dtype != np.uint8:
+        raise ValueError(f"img must be an 8-bit (uint8) image, got dtype {img.dtype}")
+    check_image_not_empty("img", img)
+    channels = check_channels("img", img)
+    check_finite("fontScale", fontScale, positive=True)
     items = [asContour(c) for c in contours]
     if not isinstance(labels, bool) and len(labels) != len(items):
         raise ValueError(f"labels must have one entry per contour, got {len(labels)} for {len(items)} contours")
-    palette = list(colors) if colors else _PALETTE
-    out = src.copy() if src.ndim == 3 and src.shape[2] == 4 else toBGR(src)
-    if out is src:
-        out = src.copy()
+    palette: list[tuple[float, ...]]
+    if colors is None:
+        palette = [tuple(float(c) for c in color) for color in distinctColors(max(len(items), 1))]
+    else:
+        palette = [tuple(float(c) for c in color) for color in colors]
+        if not palette:
+            raise ValueError("colors must not be empty")
     for i, contour in enumerate(items):
-        color = tuple(float(c) for c in palette[i % len(palette)])
-        if out.shape[2] == 4 and len(color) == 3:
+        color = palette[i % len(palette)]
+        if channels == 1:
+            b, g, r = color[:3] if len(color) >= 3 else (color[0],) * 3
+            color = (0.114 * b + 0.587 * g + 0.299 * r,)
+        elif channels == 4 and len(color) == 3:
             color = (*color, 255.0)
-        cv2.drawContours(out, [contour], -1, color, thickness)
+        cv2.drawContours(img, [contour], -1, color, thickness)
         if labels is False:
             continue
         text = str(i) if labels is True else str(labels[i])
         cx, cy = contourStats(contour).center
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, fontScale, 1)
         org = (round(cx - tw / 2), round(cy + th / 2))
-        cv2.putText(out, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 0, 0), 3, cv2.LINE_AA)
-        cv2.putText(out, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (255, 255, 255), 1, cv2.LINE_AA)
-    return out
-
-
-_PALETTE: list[tuple[int, int, int]] = [
-    (0, 0, 255),
-    (0, 255, 0),
-    (255, 0, 0),
-    (0, 255, 255),
-    (255, 0, 255),
-    (255, 255, 0),
-    (0, 128, 255),
-    (128, 0, 255),
-    (255, 128, 0),
-    (0, 255, 128),
-    (128, 255, 0),
-    (255, 0, 128),
-]
+        cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, fontScale, (255, 255, 255), 1, cv2.LINE_AA)
+    return img

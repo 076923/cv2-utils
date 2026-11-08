@@ -57,7 +57,7 @@ def fillHoles(mask: np.ndarray, maxHoleArea: int | None = None) -> np.ndarray:
     return np.asarray(filled, dtype=np.uint8) * 255
 
 
-def removeSmallObjects(mask: np.ndarray, minArea: int, connectivity: int = 8) -> np.ndarray:
+def removeSmallObjects(mask: np.ndarray, minArea: float, connectivity: int = 8) -> np.ndarray:
     """Remove connected foreground regions smaller than ``minArea`` pixels from a binary mask.
 
     Args:
@@ -69,13 +69,12 @@ def removeSmallObjects(mask: np.ndarray, minArea: int, connectivity: int = 8) ->
         ``uint8`` mask with values 0 and 255.
 
     Raises:
-        ValueError: If ``connectivity`` is not 4 or 8, ``minArea`` is negative, or ``mask`` is not a 2-D array or an
-            image, or is empty.
+        ValueError: If ``connectivity`` is not 4 or 8, ``minArea`` is negative or not finite, or ``mask`` is not a
+            2-D array or an image, or is empty.
     """
     if connectivity not in (4, 8):
         raise ValueError(f"connectivity must be 4 or 8, got {connectivity}")
-    if minArea < 0:
-        raise ValueError(f"minArea must not be negative, got {minArea}")
+    check_finite("minArea", minArea, nonnegative=True)
     fg = _foreground(mask)
     _, labels, stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=connectivity)
     keep = stats[:, cv2.CC_STAT_AREA] >= minArea
@@ -88,6 +87,7 @@ def findContoursEx(
     mode: int = cv2.RETR_EXTERNAL,
     method: int = cv2.CHAIN_APPROX_SIMPLE,
     minArea: float = 0.0,
+    *,
     sort: bool = True,
 ) -> list[np.ndarray]:
     """``cv.findContours`` for any image, with the contours sorted by area and small ones filtered out.
@@ -224,29 +224,32 @@ def maskBoundingRect(mask: np.ndarray) -> tuple[int, int, int, int] | None:
     return int(cols[0]), int(rows[0]), int(cols[-1] - cols[0] + 1), int(rows[-1] - rows[0] + 1)
 
 
-def applyMask(src: np.ndarray, mask: np.ndarray, background: float | Sequence[float] = 0) -> np.ndarray:
-    """Keep the pixels where ``mask`` is nonzero and fill the rest with ``background``.
+def applyMask(src: np.ndarray, mask: np.ndarray, fill: float | Sequence[float] = 0) -> np.ndarray:
+    """Keep the pixels where ``mask`` is nonzero and fill the rest with ``fill``.
 
     ``cv.bitwise_and(src, src, mask=mask)`` only gives a black background, wants an 8-bit single-channel mask,
-    and fails on float images. This works for any dtype and channel count and any background color.
+    and fails on float images. This works for any dtype and channel count and any fill color.
 
     Args:
         src: Image.
         mask: 2-D array (or image) of the shape ``src.shape[:2]``; nonzero (or ``True``) pixels are kept.
-        background: A scalar, or one value per channel of ``src``.
+        fill: Value for the pixels outside the mask: a scalar, or one value per channel of ``src`` (as ``fill``
+            in :func:`cropRect` and :func:`cropContour`).
 
     Returns:
         A new array with the dtype and shape of ``src``.
 
     Raises:
-        ValueError: If the mask shape does not match, or ``src`` is empty.
+        ValueError: If the mask shape does not match, ``src`` is empty, or ``fill`` is not finite.
     """
     check_image_not_empty("src", src)
     fg = _foreground(mask)
     if fg.shape != src.shape[:2]:
         raise ValueError(f"mask must have the shape {src.shape[:2]}, got {mask.shape[:2]}")
+    for value in np.ravel(np.asarray(fill, dtype=np.float64)).tolist():
+        check_finite("fill", value)
     out = np.empty_like(src)
-    out[...] = background
+    out[...] = fill
     keep = fg.astype(bool)
     out[keep] = src[keep]
     return out
