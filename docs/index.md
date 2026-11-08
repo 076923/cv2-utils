@@ -1,5 +1,5 @@
 ---
-description: "cv2u is a drop-in replacement for OpenCV's cv2 module (import cv2u as cv) that adds crop-free rotation, DBSCAN color clustering, Unicode text rendering and more, with full type hints."
+description: "cv2u is a drop-in replacement for OpenCV's cv2 module (import cv2u as cv) that adds video reading and editing, data augmentation, COCO/YOLO annotation formats, ONNX inference with cv.dnn, camera calibration, document scanning, image statistics, visualization, Unicode paths and text, and more, with full type hints."
 ---
 
 # Python OpenCV Utilities
@@ -26,6 +26,7 @@ pip install "python-opencv-utils[opencv,cluster]"    # also scikit-learn (meanSh
 ```
 
 If the project already has OpenCV installed, `pip install python-opencv-utils` without an extra uses it.
+The optional `cluster` extra adds `scikit-learn` for `meanShiftColors`, `dbscanColors` and `clusterPoints`.
 
 | | |
 |---|---|
@@ -95,6 +96,81 @@ red = cv.inRangeEx(hsv, (170, 80, 80), (10, 255, 255))  # red wraps around hue 0
 cv.imwrite("result.png", cv.montage([img, cv.overlayMask(img, red, (255, 0, 255)), *crops], gap=8))
 
 payload = {"image": cv.imencodeBase64(img, ".jpg", dataUri=True)}  # for a JSON API or an HTML <img>
+```
+
+### Training data
+
+```python
+import cv2u as cv
+
+img = cv.imread("train/0001.jpg")
+size = (img.shape[1], img.shape[0])
+boxes, classIds = cv.readYoloLabels("train/0001.txt", size)  # normalized rows -> pixel (x, y, w, h)
+img, boxes = cv.randomFlip(img, horizontal=0.5, boxes=boxes, seed=1)  # the boxes follow the image
+img, boxes = cv.randomRotate(img, maxAngle=10, boxes=boxes, seed=1)
+img = cv.randomHSV(cv.addNoise(img, "gaussian", seed=1), hue=10, seed=1)
+cv.writeYoloLabels("aug/0001.txt", boxes, classIds, size, makeDirs=True)
+cv.imwriteEx("aug/0001.jpg", cv.jpegArtifacts(img, quality=40))
+
+tiles = cv.imreadAll(["train/0001.jpg", "train/0002.jpg", "train/0003.jpg", "train/0004.jpg"])
+labels = [cv.readYoloLabels(f"train/{i:04d}.txt", (t.shape[1], t.shape[0]))[0] for i, t in enumerate(tiles, 1)]
+big, bigBoxes = cv.mosaic(tiles, (640, 640), boxes=labels, seed=1)  # YOLO-style 4-image mosaic
+polygons = cv.maskToPolygons(cv.binarize(img, "otsu", invert=True))  # COCO polygons from a mask
+rle = cv.rleEncode(cv.polygonsToMask(polygons, size))  # and uncompressed RLE, no pycocotools needed
+```
+
+### Running a model
+
+```python
+import cv2u as cv
+
+net = cv.dnn.loadModel("C:/모델/yolov8n.onnx")  # Unicode path; FileNotFoundError instead of a C++ assertion
+names = cv.dnn.readClassNames("coco.names")
+img = cv.imread("street.jpg")
+blob, info = cv.dnn.preprocessImage(img, (640, 640))  # letterbox + blob; info remembers the geometry
+output = cv.dnn.inferImage(net, blob)[0]  # every output layer, not just the first
+dets = cv.dnn.postprocessDetections(
+    output, info, scoreThreshold=0.3
+)  # YOLO rows -> Detections(boxes, scores, classIds)
+cv.imwrite("result.png", cv.dnn.drawDetections(img, dets, names))  # boxes on the original image
+```
+
+Everything else in `cv.dnn` (`cv.dnn.readNet`, `cv.dnn.blobFromImage`, `cv.dnn.NMSBoxes`, ...) is passed through from OpenCV.
+
+### Video tools
+
+```python
+import cv2u as cv
+
+fps = cv.FPSCounter()
+with cv.VideoReader("input.mp4") as video, cv.VideoWriterEx("out.mp4", fps=video.fps) as writer:
+    video.seekTime(5.0)  # start at 00:05
+    for frame in video:
+        fps.tick()
+        writer.write(cv.drawFPS(cv.autoCanny(frame), fps.fps))  # codec, size and color mode from the first frame
+
+cuts = cv.detectScenes("input.mp4", threshold=30)  # frame indices where a new shot starts
+print([cv.formatTimestamp(cv.frameToTime(i, video.fps)) for i in cuts])  # "00:00:12.400", ...
+cv.extractFrames("input.mp4", "frames/", step=30, ext=".png")  # one file every 30 frames
+cv.videoToGif("input.mp4", "preview.gif", fps=10, size=(320, 180), maxFrames=50)
+cv.imwrite("sheet.jpg", cv.videoThumbnail("input.mp4", count=6, cols=3))  # contact sheet
+```
+
+### Documents and quality
+
+```python
+import cv2u as cv
+
+photo = cv.imread("receipt.jpg")
+page = cv.scanDocument(photo)  # detect the page, warp it upright, clean the background
+mask = cv.sauvolaThreshold(page, invert=True)  # local threshold for OCR, no contrib module needed
+for x, y, w, h in cv.detectTextLines(page):  # one box per text line, top to bottom
+    cv.drawDashedRectangle(page, (x, y, w, h), (0, 160, 255))
+
+stats = cv.imageStats(photo)  # ImageStats(width, height, channels, dtype, mean, std, ..., sharpness, entropy, isGray)
+if cv.isBlurry(photo) or cv.isBlank(photo):
+    print("retake:", stats.sharpness, stats.contrast)
+cv.imwrite("compare.png", cv.compareImages(photo, page, mode="side", labels=["photo", "scan"]))
 ```
 
 ### rotateEx

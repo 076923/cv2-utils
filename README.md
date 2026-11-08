@@ -17,7 +17,10 @@
 # Python OpenCV Utilities
 
 Python OpenCV Utilities provides useful extensions for [OpenCV](https://opencv.org/)
-and can be used as a **drop-in replacement for `cv2`**.
+and can be used as a **drop-in replacement for `cv2`**. It covers the everyday gaps (Unicode paths, aspect-ratio
+resize, crop-free rotation, Unicode text) and whole workflows: video reading and editing, data augmentation,
+annotation formats (COCO polygons, RLE, YOLO), running ONNX models with `cv.dnn`, camera calibration, document
+scanning and OCR preprocessing, image statistics and visualization.
 
 ```python
 import cv2u as cv  # instead of: import cv2 as cv
@@ -137,6 +140,81 @@ heat = cv.mapTiles(img, (512, 512), run_model, overlap=32)  # a fixed-input mode
 images = cv.imreadAll(cv.listImages("photos/"))  # a folder in natural order; a bad file raises with its name
 lines = cv.findLines(img, minLength=100)  # (N, 4) segments, longest first
 aligned, M = cv.alignImages(cv.imread("scan.png"), cv.imread("template.png"))  # feature match + RANSAC + warp
+```
+
+### Training data
+
+```python
+import cv2u as cv
+
+img = cv.imread("train/0001.jpg")
+size = (img.shape[1], img.shape[0])
+boxes, classIds = cv.readYoloLabels("train/0001.txt", size)  # normalized rows -> pixel (x, y, w, h)
+img, boxes = cv.randomFlip(img, horizontal=0.5, boxes=boxes, seed=1)  # the boxes follow the image
+img, boxes = cv.randomRotate(img, maxAngle=10, boxes=boxes, seed=1)
+img = cv.randomHSV(cv.addNoise(img, "gaussian", seed=1), hue=10, seed=1)
+cv.writeYoloLabels("aug/0001.txt", boxes, classIds, size, makeDirs=True)
+cv.imwriteEx("aug/0001.jpg", cv.jpegArtifacts(img, quality=40))
+
+tiles = cv.imreadAll(["train/0001.jpg", "train/0002.jpg", "train/0003.jpg", "train/0004.jpg"])
+labels = [cv.readYoloLabels(f"train/{i:04d}.txt", (t.shape[1], t.shape[0]))[0] for i, t in enumerate(tiles, 1)]
+big, bigBoxes = cv.mosaic(tiles, (640, 640), boxes=labels, seed=1)  # YOLO-style 4-image mosaic
+polygons = cv.maskToPolygons(cv.binarize(img, "otsu", invert=True))  # COCO polygons from a mask
+rle = cv.rleEncode(cv.polygonsToMask(polygons, size))  # and uncompressed RLE, no pycocotools needed
+```
+
+### Running a model
+
+```python
+import cv2u as cv
+
+net = cv.dnn.loadModel("C:/모델/yolov8n.onnx")  # Unicode path; FileNotFoundError instead of a C++ assertion
+names = cv.dnn.readClassNames("coco.names")
+img = cv.imread("street.jpg")
+blob, info = cv.dnn.preprocessImage(img, (640, 640))  # letterbox + blob; info remembers the geometry
+output = cv.dnn.inferImage(net, blob)[0]  # every output layer, not just the first
+dets = cv.dnn.postprocessDetections(
+    output, info, scoreThreshold=0.3
+)  # YOLO rows -> Detections(boxes, scores, classIds)
+cv.imwrite("result.png", cv.dnn.drawDetections(img, dets, names))  # boxes on the original image
+```
+
+Everything else in `cv.dnn` (`cv.dnn.readNet`, `cv.dnn.blobFromImage`, `cv.dnn.NMSBoxes`, ...) is passed through from OpenCV.
+
+### Video tools
+
+```python
+import cv2u as cv
+
+fps = cv.FPSCounter()
+with cv.VideoReader("input.mp4") as video, cv.VideoWriterEx("out.mp4", fps=video.fps) as writer:
+    video.seekTime(5.0)  # start at 00:05
+    for frame in video:
+        fps.tick()
+        writer.write(cv.drawFPS(cv.autoCanny(frame), fps.fps))  # codec, size and color mode from the first frame
+
+cuts = cv.detectScenes("input.mp4", threshold=30)  # frame indices where a new shot starts
+print([cv.formatTimestamp(cv.frameToTime(i, video.fps)) for i in cuts])  # "00:00:12.400", ...
+cv.extractFrames("input.mp4", "frames/", step=30, ext=".png")  # one file every 30 frames
+cv.videoToGif("input.mp4", "preview.gif", fps=10, size=(320, 180), maxFrames=50)
+cv.imwrite("sheet.jpg", cv.videoThumbnail("input.mp4", count=6, cols=3))  # contact sheet
+```
+
+### Documents and quality
+
+```python
+import cv2u as cv
+
+photo = cv.imread("receipt.jpg")
+page = cv.scanDocument(photo)  # detect the page, warp it upright, clean the background
+mask = cv.sauvolaThreshold(page, invert=True)  # local threshold for OCR, no contrib module needed
+for x, y, w, h in cv.detectTextLines(page):  # one box per text line, top to bottom
+    cv.drawDashedRectangle(page, (x, y, w, h), (0, 160, 255))
+
+stats = cv.imageStats(photo)  # ImageStats(width, height, channels, dtype, mean, std, ..., sharpness, entropy, isGray)
+if cv.isBlurry(photo) or cv.isBlank(photo):
+    print("retake:", stats.sharpness, stats.contrast)
+cv.imwrite("compare.png", cv.compareImages(photo, page, mode="side", labels=["photo", "scan"]))
 ```
 
 ### rotateEx
@@ -296,6 +374,22 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `padToMultiple(src, multiple, color=0)`, `padToSize(src, size, color=0)` | Pad to a multiple (e.g. 32 for networks) or to an exact size, without scaling. |
 | `splitTiles(src, tileSize, overlap=0)`, `mergeTiles(tiles, size)` | Split a large image into full-size tiles and merge processed tiles back (overlaps averaged). |
 | `mapTiles(src, tileSize, func, overlap=0, progress=None)` | Run a function (e.g. a model) over a large image tile by tile and merge the results. |
+| `rotatePoints(points, angle, center=(0, 0), scale=1.0)`, `scalePoints(points, scale, center=(0, 0))`, `translatePoints(points, dx, dy)` | Transform a point set, in any point layout. |
+| `flipPoints(points, size, flipCode)`, `clipPoints(points, size)` | Flip points together with `cv.flip`; clip them to the image. |
+| `normalizePoints(points, size)`, `denormalizePoints(points, size)` | Pixels to `0..1` coordinates and back. |
+| `pointsBoundingBox(points)`, `polygonCentroid(points)`, `orderPoints(points)` | Box `(x, y, w, h)` of a point set; centroid of a polygon; 4 corners in top-left, top-right, bottom-right, bottom-left order. |
+| `distancePoints(a, b)`, `nearestPoints(a, b)` | `(N, M)` distance matrix; the nearest point in `b` for every point of `a`, with distances. |
+| `angleBetween(p1, p2, degrees=True)`, `lineIntersection(line1, line2)`, `pointLineDistance(point, line, segment=False)` | Angle of a segment; where two lines cross (`None` if parallel); distance to a line or segment. |
+| `maskToPolygons(mask, epsilon=0.0, minArea=0)`, `polygonsToMask(polygons, size, value=255)` | COCO-style polygons from a mask and back. |
+| `boxesToPolygons(boxes)`, `polygonsToBoxes(polygons)` | Boxes as 4-point polygons; bounding boxes of polygons as an `(N, 4)` array. |
+| `polygonArea(polygon)`, `polygonIoU(polygonA, polygonB, resolution=1024)`, `maskIoU(maskA, maskB)` | Exact area, overlap of two polygons (concave too) and of two masks. |
+| `rleEncode(mask)`, `rleDecode(rle)` | COCO uncompressed RLE (`{"size", "counts"}`, pycocotools-compatible) without pycocotools. |
+| `boxesToYolo(boxes, size, classIds=None)`, `yoloToBoxes(rows, size)` | Pixel boxes to normalized `class cx cy w h` rows and back. |
+| `readYoloLabels(filename, size)`, `writeYoloLabels(filename, boxes, classIds, size, makeDirs=False)` | YOLO `.txt` label files, on any path. Returns `(boxes, classIds)`. |
+| `flipBoxes(boxes, size, flipCode)`, `flipPolygons(polygons, size, flipCode)` | Flip annotations together with `cv.flip`. |
+| `labelMapToColor(labels, palette=None, background=0)`, `colorToLabelMap(image, palette, background=0)` | Paint a class-id map with distinct colors and recover it from the painted image. |
+| `instanceMasksToLabelMap(masks)`, `labelMapToMasks(labels, background=0)` | Instance masks to one label map (later masks on top) and back. |
+| `drawPolygons(src, polygons, color=None, thickness=2, fill=False, alpha=1.0, labels=None)`, `drawSegmentation(src, labels, alpha=0.5, palette=None)` | Polygons in their own colors with labels; a label map blended over the image. Both return a new image. |
 
 ### imgcodecs
 
@@ -308,6 +402,11 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `imreadUrl(url, flags=cv.IMREAD_COLOR, timeout=None, headers=None, maxBytes=None)` | Read an image from a URL. Returns `None` if decoding fails, like `cv.imread`. |
 | `toPillow(src)`, `fromPillow(image)` | Convert to/from Pillow with the right channel order. Every Pillow mode is accepted; 16-bit, `int32`, `float32` and `bool` images round-trip unchanged. |
 | `imencodeBase64(img, ext=".png", dataUri=False)`, `imdecodeBase64(data)` | Images as base64 text or data URIs, e.g. for web APIs. |
+| `imageInfo(filename)`, `exifOrientation(filename)` | `ImageInfo(width, height, channels, mode, format, fileSize, exifOrientation)` from the file header, without decoding. |
+| `imreadOriented(filename, flags=cv.IMREAD_COLOR)` | `cv.imread` with the EXIF orientation applied for every flag and format. |
+| `imreadResized(filename, size=None, scale=None, width=None, height=None, flags=cv.IMREAD_COLOR)` | Read and resize in one step; 1/2, 1/4 and 1/8 scales decode reduced for speed. |
+| `imencodeEx(ext, img, params=())`, `imdecodeEx(data, flags=cv.IMREAD_COLOR)` | Encode to `bytes` (errors raise) and decode any bytes-like object. |
+| `convertImageFormat(src, dst, quality=None, background=(255, 255, 255), makeDirs=False)` | Convert a file between formats; alpha is flattened for JPEG and the EXIF orientation applied. |
 
 ### imgproc
 
@@ -355,6 +454,37 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `drawBoxes(img, boxes, labels=None, colors=None)`, `drawPoints(img, points, labels=False)`, `drawGrid(img, step)` | Many boxes or points at once, each in its own color; a pixel grid. |
 | `distinctColors(count)` | BGR colors that are easy to tell apart, for classes, tracks or clusters. |
 | `putTextEx(img, text, org, fontPath, fontSize, color)` | Draw Unicode text (e.g. Korean) with a TrueType font, in place like `cv.putText`. `org` is the top-left corner. |
+| `addNoise(src, kind="gaussian", amount=None, seed=None)`, `motionBlur(src, size=15, angle=0.0)`, `vignette(src, strength=0.5, radius=1.0)`, `jpegArtifacts(src, quality=30)` | Photo degradations for augmentation. |
+| `randomErase(src, size=None, count=1, fill=0, seed=None)`, `solarize(src, threshold=128)`, `posterize(src, bits=4)` | Erase random patches; invert above a threshold; reduce the bit depth. |
+| `randomCrop(src, size, boxes=None, seed=None)`, `randomFlip(src, horizontal=0.5, vertical=0.0, boxes=None, seed=None)`, `randomRotate(src, maxAngle=15, boxes=None, seed=None, ...)`, `randomScale(src, scaleRange=(0.8, 1.2), boxes=None, seed=None, ...)`, `randomPerspective(src, distortion=0.1, boxes=None, seed=None, ...)` | Seeded geometric augmentations; with `boxes`, return `(dst, boxes)` with the boxes transformed too. |
+| `randomBrightnessContrast(src, brightness=0.2, contrast=0.2, seed=None)`, `randomHSV(src, hue=10, saturation=0.3, value=0.3, seed=None)`, `randomBlur(src, maxKernel=7, seed=None)` | Seeded photometric augmentations. |
+| `mosaic(images, size, boxes=None, seed=None)`, `mixup(a, b, alpha=0.5, lam=None, seed=None)`, `cutMix(a, b, alpha=1.0, seed=None)` | YOLO-style 4-image mosaic (boxes follow); mixup and CutMix return `(dst, lam)` for the labels. |
+| `imageStats(src)` | `ImageStats(width, height, channels, dtype, mean, std, minVal, maxVal, brightness, contrast, sharpness, entropy, isGray)` in one call. |
+| `isGrayscale(src, tolerance=0)`, `isBlank(src, tolerance=2.0)`, `isBlurry(src, threshold=100.0)` | Dataset triage: color-less, flat or out-of-focus images. |
+| `brightnessScore(src)`, `contrastScore(src)`, `exposureScore(src, lowThreshold=0.05, highThreshold=0.95)`, `colorfulness(src)` | Mean brightness `0..1`, contrast, share of under/over-exposed pixels, Hasler-Süsstrunk colorfulness. |
+| `entropy(src, bins=256)`, `estimateNoise(src)` | Shannon entropy of the gray histogram; noise standard deviation (Immerkær). |
+| `mse(a, b)`, `mae(a, b)` | Mean squared / absolute error between two images, overflow-safe. |
+| `histogramEx(src, bins=256, mask=None, channels=None, normalize=False)`, `histogramCompare(a, b, method=cv.HISTCMP_CORREL, bins=32, colorSpace="hsv")` | Per-channel `(channels, bins)` histogram of any dtype; similarity of two images through `cv.compareHist`. |
+| `dominantHue(src, bins=36)`, `meanColor(src, mask=None)` | The most common hue in degrees; mean color, optionally under a mask. |
+| `applyColorMapEx(values, colormap=cv.COLORMAP_JET, normalize=True, mask=None)`, `heatmap(src, values, alpha=0.5, colormap=cv.COLORMAP_JET)`, `colorBar(colormap=cv.COLORMAP_JET, size=(256, 20), vertical=False, minVal=None, maxVal=None)` | Colorize a float map of any size, overlay it on an image, draw a legend strip. |
+| `drawArrow(img, pt1, pt2, color, thickness=2, headSize=10, heads="end")`, `drawCrosshair(img, center, color, size=20, gap=4)` | Arrows with pixel-sized heads (`"end"`, `"start"`, `"both"`); a crosshair. In place. |
+| `drawRotatedRect(img, rect, color, thickness=2)`, `drawRotatedBoxes(img, rects, colors=None, labels=None)` | Draw `cv.minAreaRect` results, one or many with labels. In place. |
+| `drawPolygon(img, points, color, thickness=2, closed=True, fill=False, alpha=1.0)` | A polygon from float points, outline or translucent fill. In place. |
+| `drawSkeleton(img, keypoints, connections=COCO_SKELETON, colors=None, radius=4, minScore=0.0)`, `COCO_SKELETON` | A pose from keypoints `(x, y[, score])`; the 17-keypoint COCO connection list. |
+| `drawTrajectory(img, points, color=None, thickness=2, fade=True, maxPoints=None)` | A track that fades toward its start. In place. |
+| `drawTextBlock(img, lines, org=(10, 10), fontScale=0.5, color=(255, 255, 255), background=(0, 0, 0), alpha=0.6)`, `drawFPS(img, fps, org=(10, 10))`, `drawProgressBar(img, progress, org, size=(200, 12))`, `drawLegend(img, labels, colors=None, org=(10, 10))` | HUD panels with a translucent background: multi-line text, FPS, a progress bar, a color legend. In place. |
+| `compareImages(a, b, mode="side", split=0.5, labels=None, gap=0)` | Before/after view: `"side"`, `"vertical"`, `"split"`, `"blend"` or `"diff"`. |
+| `labeledMontage(images, labels, cols=None, cellSize=None, gap=4)`, `blendImages(images, weights=None)` | `montage` with a title over each image; weighted average of N images. |
+| `removeShadow(src, kernelSize=21, blurSize=21)`, `enhanceDocument(src, mode="gray")` | Even out the lighting of a photographed page; clean it up (`"gray"`, `"color"`, `"binary"`). |
+| `sauvolaThreshold(src, windowSize=25, k=0.2, r=128.0, invert=False)`, `niblackThreshold(src, windowSize=25, k=-0.2, invert=False)` | Local thresholds for OCR, built from `cv.integral2` (no contrib module). |
+| `removeSpeckles(src, maxArea=10)`, `removeLines(src, horizontal=True, vertical=True, minLength=None, thickness=3)`, `removeBorder(src, threshold=None, margin=0)` | Drop dust, table rules and the dark scanner border from a page. |
+| `detectTextLines(src, minHeight=5, dilateWidth=None)`, `detectTextBlocks(src, minHeight=5, dilateSize=None)` | Text lines or paragraphs as `(N, 4)` boxes in reading order. |
+| `estimateSkew(src, maxAngle=45.0)`, `detectPage(src, minAreaRatio=0.2)` | The angle behind `deskew`; the 4 corners of the page in a photo (`None` if not found). |
+| `scanDocument(src, size=None, enhance=True, minAreaRatio=0.2)` | Photo of a document to an upright, cleaned page (`detectPage` + `fourPointTransform` + `enhanceDocument`). |
+| `stitchImages(images, mode="panorama", confidence=None)`, `stitchPair(a, b, method="ORB", ratio=0.75, ...)` | `cv.Stitcher` that raises with the status name; a homography stitch of two images on a canvas that fits both. |
+| `CSS_COLORS`, `colorName(color)`, `nearestColor(color, palette, space="lab")`, `colorDistance(a, b, space="lab")` | The CSS color names as BGR; the closest name or palette index; distance between two colors. |
+| `lightenColor(color, amount)`, `darkenColor(color, amount)`, `blendColors(a, b, t=0.5)`, `complementaryColor(color)`, `invertColor(color)`, `textColorFor(background)` | Arithmetic on one BGR color; black or white text for a background. |
+| `randomColors(count, seed=None, saturation=1.0, value=1.0)`, `gradientPalette(start, end, count)`, `colormapPalette(colormap, count)` | Palettes: random, between two colors, or sampled from an OpenCV colormap (e.g. `cv.COLORMAP_VIRIDIS`). |
 
 ### videoio
 
@@ -364,6 +494,43 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `writeVideo(filename, frames, fps, fourcc=None)` | Write frames; size, color mode and codec (from the extension) are detected. Returns the frame count. |
 | `readFrameAt(source, index=None, seconds=None)` | Read one frame by number or time, e.g. for a thumbnail. |
 | `videoInfo(source)` | `VideoInfo(width, height, fps, frameCount)` with a `duration` property. |
+| `VideoReader(source)` | `cv.VideoCapture` as a context manager and iterator with `width`, `height`, `fps`, `frameCount`, `read()`, `seek(index)`, `seekTime(seconds)` and `frames(step, start, end)`. Raises `OSError` if it cannot open. |
+| `VideoWriterEx(filename, fps, fourcc=None, isColor=None, makeDirs=False)` | `cv.VideoWriter` that infers codec, size and color mode from the first `write(frame)`; a context manager. |
+| `CameraStream(source, maxWait=5.0)` | Threaded camera reader whose `read()` always gives the latest frame (no stale buffer). |
+| `FPSCounter(window=30)` | `tick()` every frame; `fps` is the moving average. |
+| `frameToTime(index, fps)`, `timeToFrame(seconds, fps)`, `formatTimestamp(seconds, ms=True)` | Frame/time conversions and `HH:MM:SS.mmm` stamps. |
+| `extractFrames(source, outDir, step=1, start=0, end=None, ext=".jpg", prefix="frame_", digits=6, progress=None)` | Dump frames to numbered files. Returns the paths. |
+| `trimVideo(source, dst, start, end=None, byTime=True, fourcc=None)`, `concatVideos(sources, dst, fourcc=None)`, `resizeVideo(source, dst, size=None, scale=None, width=None, height=None, ...)` | Cut, join and resize video files. Return the frame count. |
+| `videoToGif(source, dst, fps=None, size=None, step=1, maxFrames=None, loop=0)`, `imagesToVideo(images, dst, fps=30, fourcc=None)` | Animated GIF from a video (OpenCV cannot write GIFs); time-lapse from image files or arrays. |
+| `detectScenes(source, threshold=30.0, minLength=15, step=1)` | Frame indices where a new shot starts. |
+| `sampleFrames(source, count)`, `videoThumbnail(source, count=4, size=None, cols=None, gap=0)` | Evenly spaced frames; a contact sheet of them. |
+
+### calib3d
+
+| Function | Description |
+|---|---|
+| `makeChessboard(patternSize, squareSize=50, border=1)`, `objectPointsGrid(patternSize, squareSize=1.0)` | A printable chessboard image; the `(N, 3)` object points of its inner corners. |
+| `findChessboardEx(src, patternSize, refine=True, flags=None)` | `cv.findChessboardCorners` on any image, sub-pixel refined; the `(N, 1, 2)` corners or `None`. |
+| `calibrateCameraEx(views, patternSize, squareSize=1.0, imageSize=None, flags=0)` | Calibrate from chessboard photos. Returns `CameraCalibration(cameraMatrix, distCoeffs, imageSize, rms, rvecs, tvecs)`. |
+| `reprojectionErrors(calib, patternSize, squareSize, cornersList)` | RMS reprojection error per view. |
+| `undistortEx(src, calib, distCoeffs=None, alpha=0.0, crop=True)` | `cv.undistort` with the optimal new camera matrix and the valid region cropped (no black borders). |
+| `saveCalibration(filename, calib)`, `loadCalibration(filename)` | A JSON calibration file, on any path. |
+
+### dnn
+
+`cv2u.dnn` mirrors `cv.dnn`: the helpers are used as `cv.dnn.loadModel(...)`, and every OpenCV name
+(`cv.dnn.readNet`, `cv.dnn.blobFromImage`, `cv.dnn.NMSBoxes`, ...) still passes through.
+
+| Function | Description |
+|---|---|
+| `dnn.loadModel(path, config=None, backend=None, target=None, preferGpu=False)` | `cv.dnn.readNet` for ONNX, TFLite, TF, Caffe and Darknet on any path; `FileNotFoundError` instead of a C++ assertion. |
+| `dnn.readClassNames(path)` | The class names of a `.names`/`.txt` file, one per line. |
+| `dnn.preprocessImage(src, size, letterboxPad=True, color=(114, 114, 114), scale=1 / 255, mean=(0, 0, 0), swapRB=True)` | Letterbox + `blobFromImage`. Returns `(blob, PreprocessInfo(scale, pad, inputSize, originalSize))`. |
+| `dnn.inferImage(net, src, outputNames=None, size=None)` | `setInput` + `forward` for every output layer, from a blob or an image. Returns a list of arrays. |
+| `dnn.postprocessDetections(output, info, scoreThreshold=0.25, iouThreshold=0.45, maxCount=None, boxFormat="cxcywh", hasObjectness=False, ...)` | Decode YOLO-style output (`(1, N, 4 + C)` or transposed), undo the letterbox, per-class NMS. Returns `Detections(boxes, scores, classIds)` on the original image. |
+| `dnn.postprocessClassification(output, topK=5, softmax=True)` | `[(classId, score), ...]` for the best `topK` classes. |
+| `dnn.softmax(x, axis=-1)`, `dnn.sigmoid(x)` | Numerically stable activations for raw outputs. |
+| `dnn.drawDetections(src, detections, classNames=None, colors=None, thickness=2, showScore=True, fontPath=None)` | Boxes with class names and scores, one color per class, as a new image. Unicode names with `fontPath`. |
 
 ### highgui
 
