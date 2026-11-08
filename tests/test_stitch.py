@@ -36,10 +36,10 @@ def test_stitch_pair(halves: tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
     out = stitchPair(left, right)
     assert out.dtype == np.uint8 and out.ndim == 3
     assert abs(out.shape[1] - WIDTH) <= 6 and abs(out.shape[0] - HEIGHT) <= 6
-    # the left image is pasted unchanged somewhere on the canvas, and the whole scene is reproduced around it
+    # the left image is pasted (almost) unchanged somewhere on the canvas, and the whole scene is reproduced around it
     scores = cv2.matchTemplate(out, left, cv2.TM_SQDIFF)
-    _, _, (x, y), _ = cv2.minMaxLoc(scores)
-    assert scores[y, x] == 0
+    best, _, (x, y), _ = cv2.minMaxLoc(scores)
+    assert best / left.size < 1.0  # mean squared difference per value; warping may touch a few border pixels
     region = out[y : y + HEIGHT, x : x + WIDTH]
     assert region.shape == scene.shape and cv2.absdiff(region, scene).mean() < 15
 

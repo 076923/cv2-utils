@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import pytest
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, features
 
 from cv2u.imgcodecs.files import imreadEx
 from cv2u.imgcodecs.meta import (
@@ -79,6 +79,8 @@ def test_image_info_errors(tmp_path):
 @pytest.mark.parametrize("orientation", range(1, 9))
 @pytest.mark.parametrize("ext", [".jpg", ".png", ".webp"])
 def test_imread_oriented_matches_pillow(tmp_path, orientation, ext):
+    if ext == ".webp" and not features.check("webp"):
+        pytest.skip("Pillow was built without WebP support")
     img = _image()
     path = _save(tmp_path / f"o{ext}", img, orientation=orientation, quality=100)
     expected = ImageOps.exif_transpose(Image.open(path))
