@@ -38,6 +38,10 @@ class CameraCalibration(NamedTuple):
     """Rotation vector of the board in each view, shape ``(3, 1)`` each."""
     tvecs: tuple[np.ndarray, ...]
     """Translation vector of the board in each view, shape ``(3, 1)`` each."""
+    usedViews: tuple[int, ...] = ()
+    """Indices into the ``views`` given to :func:`calibrateCameraEx` of the views where the board was found;
+    ``rvecs[i]`` / ``tvecs[i]`` belong to ``views[usedViews[i]]``. Empty for calibrations loaded from files
+    written before this field existed."""
 
 
 def _check_pattern(patternSize: tuple[int, int]) -> tuple[int, int]:
@@ -171,7 +175,8 @@ def calibrateCameraEx(
     """Calibrate a camera from chessboard images (or already detected corners).
 
     The whole tutorial loop: detect the board in every image with :func:`findChessboardEx` (views where it is not
-    found are skipped), build the object points with :func:`objectPointsGrid`, and run ``cv.calibrateCamera``.
+    found are skipped and listed by their absence in ``usedViews``), build the object points with
+    :func:`objectPointsGrid`, and run ``cv.calibrateCamera``.
 
     Args:
         views: Images of the chessboard, or corner arrays of shape ``(N, 2)`` such as :func:`findChessboardEx`
@@ -182,7 +187,8 @@ def calibrateCameraEx(
         flags: ``cv.CALIB_*`` flags for ``cv.calibrateCamera``.
 
     Returns:
-        A :class:`CameraCalibration`.
+        A :class:`CameraCalibration`. Its ``rvecs`` / ``tvecs`` have one entry per *used* view, so when a board was
+        missed they are shorter than ``views``; ``usedViews`` maps them back to the input indices.
 
     Raises:
         ValueError: If fewer than 3 views contain the board, ``imageSize`` is missing for corner input, a corner
@@ -197,11 +203,14 @@ def calibrateCameraEx(
     if not is_corners:
         height, width = views[0].shape[:2]
         size = (width, height)
-        corners_list = [c for c in (findChessboardEx(view, (cols, rows)) for view in views) if c is not None]
+        found = [(i, findChessboardEx(view, (cols, rows))) for i, view in enumerate(views)]
+        used = [i for i, c in found if c is not None]
+        corners_list = [c for _, c in found if c is not None]
     else:
         if imageSize is None:
             raise ValueError("imageSize is required when views are corner arrays")
         size = (int(imageSize[0]), int(imageSize[1]))
+        used = list(range(len(views)))
         corners_list = list(views)
     if len(corners_list) < 3:
         raise ValueError(f"the chessboard was found in only {len(corners_list)} view(s), need at least 3")
@@ -216,11 +225,15 @@ def calibrateCameraEx(
         float(rms),
         tuple(np.asarray(r, np.float64).reshape(3, 1) for r in rvecs),
         tuple(np.asarray(t, np.float64).reshape(3, 1) for t in tvecs),
+        tuple(used),
     )
 
 
 def reprojectionErrors(
-    calib: CameraCalibration, patternSize: tuple[int, int], squareSize: float, cornersList: Sequence[np.ndarray]
+    calib: CameraCalibration,
+    patternSize: tuple[int, int],
+    squareSize: float,
+    cornersList: Sequence[np.ndarray | None],
 ) -> np.ndarray:
     """Return the RMS reprojection error of every view, to spot the bad images in a calibration set.
 
@@ -229,23 +242,37 @@ def reprojectionErrors(
     them and calibrate again.
 
     Args:
-        calib: The calibration whose ``rvecs`` / ``tvecs`` belong to ``cornersList`` (same views, same order).
+        calib: The calibration whose ``rvecs`` / ``tvecs`` belong to ``cornersList``.
         patternSize: Inner corners as ``(columns, rows)``.
         squareSize: Square size used for the calibration.
-        cornersList: The detected corners of each view, ``(N, 2)`` each.
+        cornersList: The detected corners of each view, ``(N, 2)`` each: either one per used view (same order as
+            ``calib.rvecs``), or one per *original* view given to :func:`calibrateCameraEx` (then the views listed
+            in ``calib.usedViews`` are picked, so the output of :func:`findChessboardEx` for every image can be
+            passed as is, ``None`` entries included).
 
     Returns:
-        One RMS error in pixels per view, shape ``(len(cornersList),)`` float64.
+        One RMS error in pixels per used view, shape ``(len(calib.rvecs),)`` float64.
 
     Raises:
-        ValueError: If the number of views does not match ``calib.rvecs``, or a corner array has the wrong size.
+        ValueError: If the number of views matches neither ``calib.rvecs`` nor ``calib.usedViews``, a selected
+            entry is ``None``, or a corner array has the wrong size.
     """
     cols, rows = _check_pattern(patternSize)
     objp = objectPointsGrid((cols, rows), squareSize)
-    if len(cornersList) != len(calib.rvecs):
-        raise ValueError(f"cornersList has {len(cornersList)} views, but calib has {len(calib.rvecs)}")
+    count = len(calib.rvecs)
+    used = calib.usedViews
+    if len(cornersList) == count:
+        selected = list(cornersList)
+    elif len(used) == count and len(cornersList) > max(used, default=-1):
+        selected = [cornersList[i] for i in used]
+    else:
+        raise ValueError(f"cornersList has {len(cornersList)} views, but calib has {count} (usedViews: {len(used)})")
+    for index, corners in enumerate(selected):
+        if corners is None:
+            raise ValueError(f"view {index} has no corners (None), but it was used for the calibration")
     errors = []
-    for corners, rvec, tvec in zip(_as_corners(cornersList, cols * rows), calib.rvecs, calib.tvecs, strict=True):
+    views = _as_corners([c for c in selected if c is not None], cols * rows)
+    for corners, rvec, tvec in zip(views, calib.rvecs, calib.tvecs, strict=True):
         projected, _ = cv2.projectPoints(objp, rvec, tvec, calib.cameraMatrix, calib.distCoeffs)
         diff = projected.reshape(-1, 2) - corners.reshape(-1, 2)
         errors.append(float(np.sqrt(np.mean(np.sum(diff**2, axis=1)))))
@@ -306,7 +333,7 @@ def saveCalibration(filename: str | os.PathLike[str], calib: CameraCalibration) 
 
     OpenCV's ``cv.FileStorage`` writes YAML/XML and cannot open non-ASCII paths on Windows; JSON is readable
     everywhere and works with any path. Keys: ``cameraMatrix``, ``distCoeffs``, ``imageSize``, ``rms``,
-    ``rvecs``, ``tvecs``.
+    ``rvecs``, ``tvecs``, ``usedViews``.
 
     Args:
         filename: Path to write to (``.json``).
@@ -319,6 +346,7 @@ def saveCalibration(filename: str | os.PathLike[str], calib: CameraCalibration) 
         "rms": calib.rms,
         "rvecs": [r.reshape(-1).tolist() for r in calib.rvecs],
         "tvecs": [t.reshape(-1).tolist() for t in calib.tvecs],
+        "usedViews": list(calib.usedViews),
     }
     with open(os.fspath(filename), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -347,6 +375,7 @@ def loadCalibration(filename: str | os.PathLike[str]) -> CameraCalibration:
             float(data["rms"]),
             tuple(np.asarray(r, np.float64).reshape(3, 1) for r in data.get("rvecs", [])),
             tuple(np.asarray(t, np.float64).reshape(3, 1) for t in data.get("tvecs", [])),
+            tuple(int(i) for i in data.get("usedViews", [])),
         )
     except (KeyError, TypeError) as exc:
         raise ValueError(f"not a calibration file: {os.fspath(filename)!r} ({exc})") from exc

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .._validate import check_color, check_finite, check_image_not_empty
+from .._validate import check_color, check_finite, check_image_not_empty, check_size
 from ..core.boxes import clipBoxes
 from .adjust import adjustBrightnessContrast, adjustHSV
 
@@ -101,13 +101,6 @@ def _fill_value(fill: Any, src: np.ndarray) -> list[float]:
     if len(values) != channels:
         raise ValueError(f"fill must have 1 or {channels} components for this image, got {values}")
     return values
-
-
-def _size(size: tuple[int, int], name: str = "size") -> tuple[int, int]:
-    width, height = int(size[0]), int(size[1])
-    if width <= 0 or height <= 0:
-        raise ValueError(f"{name} must be positive, got {size}")
-    return width, height
 
 
 # --- deterministic degradations ------------------------------------------------------------------------------------
@@ -297,7 +290,7 @@ def randomErase(
         patch = (size, size)
     else:
         patch = (int(size[0]), int(size[1]))
-    pw, ph = _size(patch)
+    pw, ph = check_size("size", patch)
     if pw > w or ph > h:
         raise ValueError(f"size must not exceed the image size ({w}x{h}), got {patch}")
     if count < 0:
@@ -397,7 +390,7 @@ def randomCrop(
         ValueError: If ``src`` is empty, ``size`` is not positive or exceeds the image, or ``boxes`` is malformed.
     """
     _check_image(src)
-    cw, ch = _size(size)
+    cw, ch = check_size("size", size)
     h, w = src.shape[:2]
     if cw > w or ch > h:
         raise ValueError(f"size must not exceed the image size ({w}x{h}), got {size}")
@@ -750,7 +743,7 @@ def mosaic(
     first = images[0]
     for i, image in enumerate(images):
         _same_layout(first, image, "images[0]", f"images[{i}]")
-    out_w, out_h = _size(size)
+    out_w, out_h = check_size("size", size)
     rng = np.random.default_rng(seed)
     cx = int(rng.integers(out_w // 4, out_w - out_w // 4 + 1))
     cy = int(rng.integers(out_h // 4, out_h - out_h // 4 + 1))

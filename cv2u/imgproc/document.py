@@ -11,7 +11,7 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from .._validate import check_finite, check_image_not_empty
+from .._validate import check_finite, check_image_not_empty, check_uint8
 from .adjust import autoContrast
 from .binary import binarize
 from .color import toGray
@@ -34,14 +34,6 @@ __all__ = [
 ]
 
 EnhanceMode = Literal["gray", "color", "binary"]
-
-
-def _check_uint8(name: str, src: np.ndarray) -> None:
-    check_image_not_empty(name, src)
-    if src.dtype != np.uint8:
-        raise ValueError(f"{name} must be an 8-bit (uint8) image, got dtype {src.dtype}")
-    if src.ndim not in (2, 3):
-        raise ValueError(f"{name} must be a grayscale or color image, got shape {src.shape}")
 
 
 def _check_odd(name: str, value: int, minimum: int = 3) -> None:
@@ -75,7 +67,7 @@ def removeShadow(src: np.ndarray, kernelSize: int = 21, blurSize: int = 21) -> n
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, or ``kernelSize``/``blurSize`` is not a valid kernel size.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if kernelSize < 1:
         raise ValueError(f"kernelSize must be positive, got {kernelSize}")
     _check_odd("blurSize", blurSize)
@@ -142,7 +134,7 @@ def sauvolaThreshold(
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, ``windowSize`` is not odd, or ``k``/``r`` is not finite.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     _check_odd("windowSize", windowSize)
     check_finite("k", k)
     check_finite("r", r, positive=True)
@@ -169,7 +161,7 @@ def niblackThreshold(src: np.ndarray, windowSize: int = 25, k: float = -0.2, inv
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, ``windowSize`` is not odd, or ``k`` is not finite.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     _check_odd("windowSize", windowSize)
     check_finite("k", k)
     gray = toGray(src)
@@ -209,7 +201,7 @@ def removeLines(
         ValueError: If ``src`` is empty or not 8-bit, ``minLength`` is not positive, or ``thickness`` is not
             positive.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if minLength is not None:
         check_finite("minLength", minLength, positive=True)
     if thickness < 1:
@@ -250,7 +242,7 @@ def _text_regions(
 ) -> np.ndarray:
     """Boxes of ink regions after dilating with ``ksize``, sorted top to bottom; the kernel defaults to
     ``defaults`` times the median character height."""
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if minHeight < 1:
         raise ValueError(f"minHeight must be positive, got {minHeight}")
     ink = _ink_mask(src)
@@ -343,7 +335,7 @@ def removeBorder(src: np.ndarray, threshold: float | None = None, margin: int = 
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, or ``threshold`` is not finite.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if threshold is not None:
         check_finite("threshold", threshold)
     gray = toGray(src)
@@ -379,7 +371,7 @@ def detectPage(src: np.ndarray, minAreaRatio: float = 0.2) -> np.ndarray | None:
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, or ``minAreaRatio`` is not in ``[0, 1]``.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     check_finite("minAreaRatio", minAreaRatio)
     if not 0 <= minAreaRatio <= 1:
         raise ValueError(f"minAreaRatio must be in [0, 1], got {minAreaRatio}")
@@ -425,7 +417,7 @@ def enhanceDocument(src: np.ndarray, mode: EnhanceMode = "gray") -> np.ndarray:
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, or ``mode`` is unknown.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if mode not in ("gray", "color", "binary"):
         raise ValueError(f"mode must be 'gray', 'color' or 'binary', got {mode!r}")
     image = src if mode == "color" else toGray(src)
@@ -513,7 +505,7 @@ def removeSpeckles(src: np.ndarray, maxArea: int = 10) -> np.ndarray:
     Raises:
         ValueError: If ``src`` is empty or not 8-bit, or ``maxArea`` is negative.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     if maxArea < 0:
         raise ValueError(f"maxArea must not be negative, got {maxArea}")
     ink = _ink_mask(src)

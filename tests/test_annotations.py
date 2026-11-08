@@ -108,7 +108,9 @@ def test_polygonsToMask_validation():
     with pytest.raises(ValueError, match="polygons"):
         polygonsToMask(np.zeros((2, 3)), (5, 5))
     with pytest.raises(ValueError, match="polygons"):
-        polygonsToMask([[[[1, 2]]]], (5, 5))
+        polygonsToMask([[[[[1, 2]]]]], (5, 5))  # 5-D: not a polygon list
+    with pytest.raises(ValueError, match="polygons"):
+        polygonsToMask([np.zeros((2, 2, 2))], (5, 5))  # (N, 2, 2) is neither (N, 2) nor (N, 1, 2)
     assert polygonsToMask(np.zeros((3, 1, 2), np.int32), (5, 5)).shape == (5, 5)  # one (N, 1, 2) contour
 
 
@@ -511,3 +513,47 @@ def test_flip_validation():
         flipPolygons([], (1, 0), 1)
     with pytest.raises(ValueError, match="flipCode"):
         flipPolygons([], SIZE, 5)
+
+
+# --- regression: review findings ----------------------------------------------------------------------------------
+
+
+def test_drawPolygons_label_text_is_white_on_dark_boxes(canvas):
+    # A scalar 255 text color is expanded by OpenCV to (255, 0, 0): blue text on a BGR image.
+    quad = [(10, 20), (70, 20), (70, 50), (10, 50)]
+    drawPolygons(canvas, [quad], color=(0, 0, 0), labels=["dark"], thickness=1, lineType=cv2.LINE_8)
+    tag = canvas[:20, 10:50].reshape(-1, 3)
+    text = tag[tag.any(axis=1)]
+    assert len(text) > 0
+    assert np.all(text[:, 0] == text[:, 1]) and np.all(text[:, 1] == text[:, 2])  # gray levels, not blue
+    assert text.max() == 255
+    bgra = np.zeros((60, 80, 4), np.uint8)
+    drawPolygons(bgra, [quad], color=(0, 0, 0, 255), labels=["dark"], thickness=1, lineType=cv2.LINE_8)
+    text = bgra[:20, 10:50].reshape(-1, 4)
+    text = text[text[:, :3].any(axis=1)]
+    assert np.all(text[:, 0] == text[:, 2]) and np.all(text[:, 0] == text[:, 3]) and text.max() == 255
+
+
+def test_polygons_accepts_equal_length_contours_and_mixed_forms():
+    square = np.array([[[1, 1]], [[4, 1]], [[4, 4]], [[1, 4]]], np.int32)  # (N, 1, 2) like cv.findContours
+    other = square + 3
+    mask = polygonsToMask([square, other], (10, 10))  # equal lengths: np.asarray would give a 4-D array
+    assert mask.shape == (10, 10) and mask[2, 2] == 255 and mask[6, 6] == 255 and mask[0, 0] == 0
+    mixed = [square, square.reshape(-1, 2) + 3, [(0, 8), (2, 8), (2, 9)]]  # contour, (N, 2), point list
+    assert len(polygonsToBoxes(mixed)) == 3
+    ragged = [square, [(0, 8), (2, 8), (2, 9), (1, 9), (0, 9)]]
+    assert len(polygonsToBoxes(ragged)) == 2
+    assert polygonsToBoxes([square])[0].tolist() == [1, 1, 3, 3]
+
+
+def test_drawPolygons_numpy_array_is_one_color(canvas):
+    quad = [(10, 10), (50, 10), (50, 50), (10, 50)]
+    color = np.array([0, 0, 255], np.uint8)  # e.g. a row of Clusters.centers
+    drawPolygons(canvas, [quad, quad], color=color, fill=True)
+    assert canvas[30, 30].tolist() == [0, 0, 255]
+    gray = np.zeros((60, 80), np.uint8)
+    drawPolygons(gray, [quad], color=np.uint8(200), fill=True)
+    assert gray[30, 30] == 200
+    centers = np.array([[255, 0, 0], [0, 255, 0]], np.uint8)
+    drawPolygons(canvas, [quad, [(60, 10), (70, 10), (70, 20)]], color=centers, fill=True)
+    assert canvas[30, 30].tolist() == [255, 0, 0]

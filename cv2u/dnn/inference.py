@@ -335,14 +335,15 @@ def loadModel(
         raise FileNotFoundError(f"config file not found: {config_path}")
 
     ext = os.path.splitext(model_path)[1].lower()
-    buffer = np.fromfile(model_path, dtype=np.uint8)
+    # Only the formats with a buffer reader (unicode-safe paths) are read into memory; the others let OpenCV
+    # open the path itself, so a large Caffe or Darknet model is not loaded twice.
     if ext == ".onnx" and hasattr(dnn, "readNetFromONNX"):
-        net = dnn.readNetFromONNX(buffer)
+        net = dnn.readNetFromONNX(np.fromfile(model_path, dtype=np.uint8))
     elif ext == ".tflite" and hasattr(dnn, "readNetFromTFLite"):
-        net = dnn.readNetFromTFLite(buffer)
+        net = dnn.readNetFromTFLite(np.fromfile(model_path, dtype=np.uint8))
     elif ext == ".pb" and hasattr(dnn, "readNetFromTensorflow"):
         config_buffer = np.zeros(0, np.uint8) if config_path is None else np.fromfile(config_path, dtype=np.uint8)
-        net = dnn.readNetFromTensorflow(buffer, config_buffer)
+        net = dnn.readNetFromTensorflow(np.fromfile(model_path, dtype=np.uint8), config_buffer)
     else:
         net = dnn.readNet(model_path) if config_path is None else dnn.readNet(model_path, config_path)
 

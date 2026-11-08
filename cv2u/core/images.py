@@ -6,18 +6,11 @@ from typing import Literal
 import numpy as np
 from numpy.typing import DTypeLike
 
-from .._validate import check_color
+from .._validate import check_color, check_size
 
 __all__ = ["imcolor", "imcolorLike", "makeGradient"]
 
 GradientDirection = Literal["horizontal", "vertical", "raster"]
-
-
-def _size(size: tuple[int, int]) -> tuple[int, int]:
-    width, height = size
-    if width < 1 or height < 1:
-        raise ValueError(f"size must be at least 1x1, got {size}")
-    return int(width), int(height)
 
 
 def _color_values(name: str, color: float | Sequence[float], channels: int, dtype: DTypeLike) -> np.ndarray:
@@ -52,7 +45,7 @@ def makeGradient(
         ValueError: If ``size`` is not positive, ``channels`` is not 1 or 3, a value is outside ``[0, 255]`` or
             does not match the channel count, or ``direction`` is unknown.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     if channels not in (1, 3):
         raise ValueError(f"channels must be 1 or 3, got {channels}")
     lo = _color_values("start", start, channels, np.uint8)
@@ -85,7 +78,7 @@ def imcolor(
         ValueError: If ``size`` is not positive, ``channels`` is not 1, 3 or 4, or ``color`` is not finite, does not
             match the channel count, or is outside the range of ``dtype``.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     if channels not in (1, 3, 4):
         raise ValueError(f"channels must be 1, 3 or 4, got {channels}")
     values = _color_values("color", color, channels, dtype)

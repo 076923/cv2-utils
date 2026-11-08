@@ -343,3 +343,18 @@ def test_bad_images(fn):
         fn(np.zeros((0, 4), np.uint8))
     with pytest.raises(ValueError):
         fn(np.zeros((4, 4, 2), np.uint8))
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.float32])
+def test_imageStats_matches_the_single_metric_functions(photo, dtype):
+    from cv2u.imgproc.quality import sharpnessScore
+
+    img = photo.astype(dtype) * (257 if dtype == np.uint16 else 1 / 255 if dtype == np.float32 else 1)
+    s = imageStats(img)
+    assert s.brightness == brightnessScore(img)
+    assert s.contrast == contrastScore(img)
+    assert s.sharpness == sharpnessScore(img)
+    assert s.entropy == entropy(img)
+    assert s.isGray == isGrayscale(img)
+    gray = imageStats(photo[..., 1])
+    assert gray.isGray and gray.entropy == entropy(photo[..., 1]) and gray.sharpness == sharpnessScore(photo[..., 1])

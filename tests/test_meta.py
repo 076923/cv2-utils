@@ -220,3 +220,25 @@ def test_convert_errors(tmp_path):
     assert not convertImageFormat(tmp_path / "missing.png", tmp_path / "x.png")
     with pytest.raises(ValueError, match="extension"):
         convertImageFormat(_save(tmp_path / "s.png", _image()), tmp_path / "noext")
+
+
+def test_convertImageFormat_scales_16bit_and_float_to_8bit_for_8bit_formats(tmp_path):
+    src16 = tmp_path / "deep.png"
+    assert cv2.imwrite(str(src16), np.full((8, 8, 3), 40000, np.uint16))
+    assert convertImageFormat(src16, tmp_path / "deep.jpg", quality=100)
+    out = imreadEx(tmp_path / "deep.jpg", cv2.IMREAD_UNCHANGED)
+    assert out.dtype == np.uint8 and abs(int(out[4, 4, 0]) - 156) <= 2  # 40000 / 257, not saturated to 255
+    assert convertImageFormat(src16, tmp_path / "deep.bmp")
+    assert imreadEx(tmp_path / "deep.bmp", cv2.IMREAD_UNCHANGED)[4, 4, 0] == 156
+    assert convertImageFormat(src16, tmp_path / "kept.png")
+    assert imreadEx(tmp_path / "kept.png", cv2.IMREAD_UNCHANGED).dtype == np.uint16  # PNG keeps 16-bit
+    assert convertImageFormat(src16, tmp_path / "kept.tif")
+    assert imreadEx(tmp_path / "kept.tif", cv2.IMREAD_UNCHANGED).dtype == np.uint16
+
+    srcf = tmp_path / "float.tif"
+    assert cv2.imwrite(str(srcf), np.full((8, 8), 0.5, np.float32))
+    assert convertImageFormat(srcf, tmp_path / "float.jpg", quality=100)
+    out = imreadEx(tmp_path / "float.jpg", cv2.IMREAD_UNCHANGED)
+    assert out.dtype == np.uint8 and abs(int(out[4, 4]) - 128) <= 2
+    assert convertImageFormat(srcf, tmp_path / "float.pfm")
+    assert imreadEx(tmp_path / "float.pfm", cv2.IMREAD_UNCHANGED).dtype == np.float32  # PFM keeps floats

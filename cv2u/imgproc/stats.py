@@ -6,7 +6,7 @@ from typing import Any, NamedTuple
 import cv2
 import numpy as np
 
-from .._validate import check_finite, check_image_not_empty
+from .._validate import check_finite, check_image_not_empty, to_uint8
 from .color import toBGR, toGray
 from .quality import sharpnessScore
 
@@ -41,6 +41,32 @@ def _gray64(src: np.ndarray) -> np.ndarray:
     return toGray(src).astype(np.float64)
 
 
+def _brightness(gray: np.ndarray, peak: float) -> float:
+    return float(gray.mean() / peak)
+
+
+def _contrast(gray: np.ndarray, peak: float) -> float:
+    return float(gray.std() / peak)
+
+
+def _sharpness(gray: np.ndarray) -> float:
+    laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+    return float(laplacian.var())
+
+
+def _entropy(counts: np.ndarray) -> float:
+    probabilities = counts[counts > 0] / counts.sum()
+    return float(-(probabilities * np.log2(probabilities)).sum())
+
+
+def _is_grayscale(color: np.ndarray, tolerance: float) -> bool:
+    if color.shape[2] == 1:
+        return True
+    values = color.astype(np.float64)
+    spread = values.max(axis=2) - values.min(axis=2)
+    return bool(np.max(spread) <= tolerance)
+
+
 def _color_channels(src: np.ndarray) -> np.ndarray:
     """The image without its alpha channel, as a ``(h, w, c)`` array."""
     check_image_not_empty("src", src)
@@ -49,15 +75,6 @@ def _color_channels(src: np.ndarray) -> np.ndarray:
     if src.ndim != 3 or src.shape[2] not in (1, 3, 4):
         raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
     return src[..., :3]
-
-
-def _to_uint8(src: np.ndarray) -> np.ndarray:
-    """8-bit version of the image for OpenCV functions that only accept ``uint8`` (scaled by the dtype peak)."""
-    if src.dtype == np.uint8:
-        return src
-    scaled = np.clip(src.astype(np.float64) * (255.0 / _peak(src.dtype)), 0, 255)
-    out: np.ndarray = np.rint(scaled).astype(np.uint8)
-    return out
 
 
 def _check_pair(a: np.ndarray, b: np.ndarray) -> None:
@@ -115,12 +132,7 @@ def isGrayscale(src: np.ndarray, tolerance: float = 0) -> bool:
         ValueError: If ``src`` is empty, has a wrong channel count, or ``tolerance`` is negative.
     """
     check_finite("tolerance", tolerance, nonnegative=True)
-    color = _color_channels(src)
-    if color.shape[2] == 1:
-        return True
-    values = color.astype(np.float64)
-    spread = values.max(axis=2) - values.min(axis=2)
-    return bool(np.max(spread) <= tolerance)
+    return _is_grayscale(_color_channels(src), tolerance)
 
 
 def isBlank(src: np.ndarray, tolerance: float = 2.0) -> bool:
@@ -168,7 +180,7 @@ def brightnessScore(src: np.ndarray) -> float:
     Raises:
         ValueError: If ``src`` is empty or has a wrong channel count.
     """
-    return float(_gray64(src).mean() / _peak(src.dtype))
+    return _brightness(_gray64(src), _peak(src.dtype))
 
 
 def contrastScore(src: np.ndarray) -> float:
@@ -183,7 +195,7 @@ def contrastScore(src: np.ndarray) -> float:
     Raises:
         ValueError: If ``src`` is empty or has a wrong channel count.
     """
-    return float(_gray64(src).std() / _peak(src.dtype))
+    return _contrast(_gray64(src), _peak(src.dtype))
 
 
 def colorfulness(src: np.ndarray) -> float:
@@ -237,11 +249,11 @@ def exposureScore(src: np.ndarray, lowThreshold: float = 0.05, highThreshold: fl
     return float((gray <= lowThreshold).mean()), float((gray >= highThreshold).mean())
 
 
-def _gray_histogram(src: np.ndarray, bins: int) -> np.ndarray:
-    gray = toGray(src)
+def _gray_histogram(gray: np.ndarray, bins: int, peak: float) -> np.ndarray:
+    """Histogram of a grayscale image (any dtype) over ``[0, peak]``; ``float64`` input is binned directly."""
     if gray.dtype == np.uint8 and bins == 256:
         return np.bincount(gray.ravel(), minlength=256).astype(np.float64)
-    counts, _ = np.histogram(gray.astype(np.float64), bins=bins, range=(0.0, _peak(src.dtype)))
+    counts, _ = np.histogram(gray.astype(np.float64), bins=bins, range=(0.0, peak))
     return counts.astype(np.float64)
 
 
@@ -260,9 +272,7 @@ def entropy(src: np.ndarray, bins: int = 256) -> float:
     """
     if bins < 1:
         raise ValueError(f"bins must be at least 1, got {bins}")
-    counts = _gray_histogram(src, bins)
-    probabilities = counts[counts > 0] / counts.sum()
-    return float(-(probabilities * np.log2(probabilities)).sum())
+    return _entropy(_gray_histogram(toGray(src), bins, _peak(src.dtype)))
 
 
 _NOISE_KERNEL = np.array([[1, -2, 1], [-2, 4, -2], [1, -2, 1]], dtype=np.float64)
@@ -401,7 +411,7 @@ def histogramCompare(
         raise ValueError(f'colorSpace must be "hsv", "bgr" or "gray", got {colorSpace!r}')
 
     def histogram(src: np.ndarray) -> np.ndarray:
-        image = _to_uint8(src)
+        image = to_uint8(src)
         if colorSpace == "gray":
             image, channels, ranges = toGray(image), [0], [0.0, 256.0]
         elif colorSpace == "hsv":
@@ -433,7 +443,7 @@ def dominantHue(src: np.ndarray, bins: int = 36) -> float:
     color = _color_channels(src)
     if color.shape[2] == 1:
         return 0.0
-    hsv = cv2.cvtColor(toBGR(_to_uint8(src)), cv2.COLOR_BGR2HSV_FULL)
+    hsv = cv2.cvtColor(toBGR(to_uint8(src)), cv2.COLOR_BGR2HSV_FULL)
     hue = hsv[..., 0].astype(np.float64) * (360.0 / 256.0)
     weight = hsv[..., 1].astype(np.float64) * (hsv[..., 2].astype(np.float64) / 255.0)
     if weight.sum() == 0:
@@ -484,10 +494,13 @@ def imageStats(src: np.ndarray) -> ImageStats:
     Raises:
         ValueError: If ``src`` is empty or has a wrong channel count.
     """
-    _color_channels(src)
+    color = _color_channels(src)
     image = src[..., np.newaxis] if src.ndim == 2 else src
     flat = image.reshape(-1, image.shape[2]).astype(np.float64)
     height, width = src.shape[:2]
+    peak = _peak(src.dtype)
+    gray8 = toGray(src)  # converted once; every gray-based metric derives from it
+    gray = gray8.astype(np.float64)
     return ImageStats(
         width=int(width),
         height=int(height),
@@ -497,9 +510,9 @@ def imageStats(src: np.ndarray) -> ImageStats:
         std=tuple(float(v) for v in flat.std(axis=0)),
         minVal=float(np.min(flat)),
         maxVal=float(np.max(flat)),
-        brightness=brightnessScore(src),
-        contrast=contrastScore(src),
-        sharpness=sharpnessScore(src),
-        entropy=entropy(src),
-        isGray=isGrayscale(src),
+        brightness=_brightness(gray, peak),
+        contrast=_contrast(gray, peak),
+        sharpness=_sharpness(gray),
+        entropy=_entropy(_gray_histogram(gray8, 256, peak)),
+        isGray=_is_grayscale(color, 0),
     )

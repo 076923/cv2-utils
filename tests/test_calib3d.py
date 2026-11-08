@@ -158,7 +158,11 @@ def test_save_load_roundtrip(tmp_path, calib: CameraCalibration) -> None:  # typ
     assert np.allclose(loaded.distCoeffs, calib.distCoeffs) and loaded.distCoeffs.shape == calib.distCoeffs.shape
     assert loaded.imageSize == calib.imageSize and loaded.rms == calib.rms
     assert len(loaded.rvecs) == 5 and np.allclose(loaded.tvecs[2], calib.tvecs[2])
-    assert set(json.loads(path.read_text("utf-8"))) >= {"cameraMatrix", "distCoeffs", "imageSize", "rms"}
+    assert loaded.usedViews == calib.usedViews == (0, 1, 2, 3, 4)
+    assert set(json.loads(path.read_text("utf-8"))) >= {"cameraMatrix", "distCoeffs", "imageSize", "rms", "usedViews"}
+    old = {k: v for k, v in json.loads(path.read_text("utf-8")).items() if k != "usedViews"}
+    (tmp_path / "old.json").write_text(json.dumps(old), "utf-8")
+    assert loadCalibration(tmp_path / "old.json").usedViews == ()  # files from before the field existed
 
 
 def test_load_errors(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -168,3 +172,22 @@ def test_load_errors(tmp_path) -> None:  # type: ignore[no-untyped-def]
         loadCalibration(bad)
     with pytest.raises(OSError):
         loadCalibration(tmp_path / "missing.json")
+
+
+def test_calibrate_skipped_views_are_listed_in_usedViews(views: list[np.ndarray]) -> None:
+    blank = np.full_like(views[0], 255)
+    mixed = [views[0], blank, views[1], views[2], blank, views[3]]
+    calib = calibrateCameraEx(mixed, PATTERN, SQUARE)
+    assert calib.usedViews == (0, 2, 3, 5)
+    assert len(calib.rvecs) == len(calib.tvecs) == 4
+    corners = [findChessboardEx(v, PATTERN) for v in mixed]
+    assert corners[1] is None and corners[4] is None
+    full = reprojectionErrors(calib, PATTERN, SQUARE, corners)  # one entry per original view, None included
+    used = reprojectionErrors(calib, PATTERN, SQUARE, [c for c in corners if c is not None])  # per used view
+    assert full.shape == (4,) and np.allclose(full, used)
+    with pytest.raises(ValueError, match="cornersList"):
+        reprojectionErrors(calib, PATTERN, SQUARE, corners[:5])
+    with pytest.raises(ValueError, match="None"):
+        reprojectionErrors(calib, PATTERN, SQUARE, [corners[0], None, corners[2], corners[3]])
+    from_corners = calibrateCameraEx([c for c in corners if c is not None], PATTERN, SQUARE, imageSize=SIZE)
+    assert from_corners.usedViews == (0, 1, 2, 3)

@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .._validate import check_channels, check_finite, check_image_not_empty
+from .._validate import as_color, check_channels, check_finite, check_image_not_empty, is_single_color
 from .puttext import _load_font
 
 __all__ = [
@@ -391,12 +391,10 @@ def drawBoxes(
     palette: list[Color]
     if colors is None:
         palette = list(distinctColors(max(count, 1)))
-    elif isinstance(colors, (int, float)) or (
-        len(colors) in (3, 4) and all(isinstance(c, (int, float)) for c in colors)
-    ):
-        palette = [colors] * max(count, 1)  # type: ignore[list-item]
+    elif is_single_color(colors):
+        palette = [as_color(colors)] * max(count, 1)
     else:
-        palette = list(colors)
+        palette = [as_color(c) for c in colors]  # type: ignore[union-attr]
         if len(palette) != count:
             raise ValueError(f"colors must have one entry per box, got {len(palette)} for {count} boxes")
     for i, box in enumerate(array):

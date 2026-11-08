@@ -342,6 +342,7 @@ class CameraStream:
         self._thread: threading.Thread | None = None
         self._counter = FPSCounter()
         self._ended = False
+        self._delivered = False
 
     @property
     def isRunning(self) -> bool:
@@ -373,6 +374,7 @@ class CameraStream:
                 break
             with self._lock:
                 self._frame = frame
+                self._delivered = False
             self._counter.tick()
             self._has_frame.set()
         self._has_frame.set()
@@ -380,12 +382,18 @@ class CameraStream:
     def read(self) -> np.ndarray | None:
         """Return the latest frame, or ``None`` if none arrived within ``maxWait`` or the stream ended.
 
-        Returns the same frame again when no new one arrived in the meantime. The thread is started if needed.
+        Returns the same frame again when no new one arrived in the meantime, as long as the source is still
+        running. Once the source has ended (:attr:`ended`), the last frame is returned once more if it has not been
+        read yet, then ``None`` forever, so a ``while (frame := stream.read()) is not None`` loop terminates on
+        a file. The thread is started if needed.
         """
         self.start()
         if not self._has_frame.wait(self.maxWait):
             return None
         with self._lock:
+            if self._ended and self._delivered:
+                return None
+            self._delivered = True
             return self._frame
 
     def stop(self) -> None:

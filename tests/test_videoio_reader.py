@@ -186,16 +186,32 @@ def test_CameraStream_on_a_file(video):
     assert stream.fps >= 0
 
 
-def test_CameraStream_ends_and_keeps_last_frame(video):
+def test_CameraStream_ends_and_delivers_last_frame_once(video):
     stream = CameraStream(video, maxWait=2.0).start()
     try:
         stream._thread.join(timeout=5)  # the file is short: the thread finishes
         assert stream.ended
         last = stream.read()
         assert last is not None and _bar_width(last) == 64
+        assert stream.read() is None  # the docstring promise: None once the stream ended
+        assert stream.read() is None
     finally:
         stream.stop()
         stream.stop()  # idempotent
+
+
+def test_CameraStream_read_loop_terminates_on_a_file(video):
+    import time
+
+    deadline = time.monotonic() + 10
+    last = None
+    count = 0
+    with CameraStream(video, maxWait=2.0) as stream:
+        while (frame := stream.read()) is not None:  # the same frame may repeat while the thread still runs
+            last, count = frame, count + 1
+            if time.monotonic() > deadline:
+                pytest.fail("read() never returned None after the file ended")
+    assert count >= 1 and _bar_width(last) == 64
 
 
 def test_CameraStream_missing(tmp_path):

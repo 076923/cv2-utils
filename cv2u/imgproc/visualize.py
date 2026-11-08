@@ -6,7 +6,15 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from .._validate import check_channels, check_color, check_finite, check_image_not_empty
+from .._validate import (
+    as_color,
+    check_channels,
+    check_color,
+    check_finite,
+    check_image_not_empty,
+    check_uint8,
+    is_single_color,
+)
 from ..core.compose import hconcatEx, vconcatEx
 from .color import distinctColors, toBGR, toBGRA, toGray
 from .draw import Color, _bgr, _luminance
@@ -42,13 +50,6 @@ COCO_SKELETON: tuple[tuple[int, int], ...] = (
 ankles)."""
 
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
-
-
-def _check_uint8(name: str, img: np.ndarray) -> None:
-    if img.dtype != np.uint8:
-        raise ValueError(f"{name} must be an 8-bit (uint8) image, got dtype {img.dtype}")
-    check_image_not_empty(name, img)
-    check_channels(name, img)
 
 
 def _check_unit(name: str, value: float) -> None:
@@ -178,7 +179,7 @@ def heatmap(
     Raises:
         ValueError: If ``src`` is not 8-bit, ``values`` is not 2-D, or ``alpha`` is outside ``[0, 1]``.
     """
-    _check_uint8("src", src)
+    check_uint8("src", src)
     _check_unit("alpha", alpha)
     colored = applyColorMapEx(values, colormap, normalize)
     height, width = src.shape[:2]
@@ -399,9 +400,9 @@ def drawRotatedBoxes(
 def _palette(colors: Sequence[Color] | Color | None, count: int) -> list[Color]:
     if colors is None:
         return list(distinctColors(max(count, 1)))
-    if isinstance(colors, (int, float)) or (len(colors) in (3, 4) and all(isinstance(c, (int, float)) for c in colors)):
-        return [colors] * max(count, 1)  # type: ignore[list-item]
-    palette = list(colors)
+    if is_single_color(colors):
+        return [as_color(colors)] * max(count, 1)
+    palette: list[Color] = [as_color(c) for c in colors]  # type: ignore[union-attr]
     if len(palette) != count:
         raise ValueError(f"colors must have one entry per item, got {len(palette)} for {count} items")
     return palette
@@ -638,7 +639,7 @@ def drawTextBlock(
         ValueError: If ``img`` is not 8-bit, ``alpha`` is outside ``[0, 1]``, ``padding`` is negative, or
             ``fontScale`` / ``lineSpacing`` is not positive.
     """
-    _check_uint8("img", img)
+    check_uint8("img", img)
     _check_unit("alpha", alpha)
     check_finite("fontScale", fontScale, positive=True)
     check_finite("lineSpacing", lineSpacing, positive=True)
@@ -751,7 +752,7 @@ def drawLegend(
         ValueError: If ``colors`` has a different length than ``labels``, ``swatch`` is not positive, or see
             :func:`drawTextBlock`.
     """
-    _check_uint8("img", img)
+    check_uint8("img", img)
     _check_unit("alpha", alpha)
     if swatch < 1:
         raise ValueError(f"swatch must be positive, got {swatch}")
@@ -836,8 +837,8 @@ def compareImages(
         ValueError: If an image is not 8-bit, ``mode`` is unknown, ``split`` is outside ``[0, 1]``, ``gap`` is
             negative or ``labels`` does not have two entries.
     """
-    _check_uint8("a", a)
-    _check_uint8("b", b)
+    check_uint8("a", a)
+    check_uint8("b", b)
     if mode not in ("side", "vertical", "split", "blend", "diff"):
         raise ValueError(f"mode must be 'side', 'vertical', 'split', 'blend' or 'diff', got {mode!r}")
     _check_unit("split", split)
@@ -906,7 +907,7 @@ def labeledMontage(
     fill = _bgr(color)
     cells = []
     for img, text in zip(images, labels, strict=True):
-        _check_uint8("images", img)
+        check_uint8("images", img)
         tile = toBGR(img)
         if cellSize is not None:
             tile = letterbox(tile, cellSize, color=fill)[0]
@@ -935,7 +936,7 @@ def blendImages(images: Sequence[np.ndarray], weights: Sequence[float] | None = 
     if len(images) == 0:
         raise ValueError("images must not be empty")
     for img in images:
-        _check_uint8("images", img)
+        check_uint8("images", img)
     if weights is None:
         weights = [1.0] * len(images)
     if len(weights) != len(images):
@@ -955,5 +956,6 @@ def blendImages(images: Sequence[np.ndarray], weights: Sequence[float] | None = 
             img = convert(img)
         if img.shape[:2] != (height, width):
             img = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
-        acc += img.astype(np.float32) * (float(w) / total)
+        # (h, w, 1) and (h, w) both count as one channel; cv.resize also drops a trailing 1.
+        acc += img.reshape(first.shape).astype(np.float32) * (float(w) / total)
     return np.clip(np.rint(acc), 0, 255).astype(np.uint8)

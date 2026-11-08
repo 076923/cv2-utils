@@ -40,7 +40,8 @@ semantic versioning and renames keep a deprecated alias (see [Design principles]
 - `imencodeEx`, `imdecodeEx`, `convertImageFormat`: encode to `bytes` with errors raised, decode from any bytes-like object, and convert files between formats (alpha flattened for JPEG, orientation applied, `quality`).
 - Color arithmetic (`imgproc`): `CSS_COLORS`, `lightenColor`, `darkenColor`, `blendColors`, `complementaryColor`, `invertColor`, `colorDistance`, `nearestColor`, `colorName`, `textColorFor`, `randomColors`, `gradientPalette`, `colormapPalette`.
 - Point sets (`core`): `rotatePoints`, `scalePoints`, `translatePoints`, `flipPoints`, `normalizePoints`, `denormalizePoints`, `clipPoints`, `pointsBoundingBox`, `distancePoints`, `nearestPoints`, `orderPoints`, `polygonCentroid`, `angleBetween`, `lineIntersection`, `pointLineDistance`.
-- `Clusters` and `Letterbox` named tuples (see Changed).
+- `Clusters` and `Letterbox` named tuples (see Changed). `CameraCalibration.usedViews` lists the input views `calibrateCameraEx` used
+  (views without a board are skipped), and `reprojectionErrors` accepts the original corner list with `None` entries.
 
 ### Changed
 - `DBSCAN` is now `dbscanColors(src, eps, minSamples=4)` and returns `Clusters(maps, centers)` like the other clusterers; labels are `0 .. k-1` with noise `-1` (was `(maps, labels)` with noise `0` and clusters from `1`). `clusterPoints` follows the same convention (noise `-1`, `int32` labels).

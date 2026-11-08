@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
+from .._validate import to_uint8
 from ..imgproc.color import flattenAlpha
 from ..imgproc.resize import resizeEx
 from .files import imreadEx, imwriteEx
@@ -290,6 +291,10 @@ def imdecodeEx(data: bytes | bytearray | memoryview | np.ndarray, flags: int = c
 
 
 _ALPHA_FORMATS = frozenset({".png", ".webp", ".tif", ".tiff", ".avif", ".bmp", ".jp2"})
+_UINT16_FORMATS = frozenset({".png", ".tif", ".tiff", ".jp2", ".pxm", ".pgm", ".ppm", ".pnm", ".pfm"})
+"""Formats whose OpenCV encoder keeps 16-bit samples without loss (PFM stores them as floats)."""
+_FLOAT_FORMATS = frozenset({".exr", ".hdr", ".pic", ".pfm", ".tif", ".tiff"})
+"""Formats whose OpenCV encoder stores 32-bit float samples (TIFF also takes 16-bit and 64-bit floats)."""
 _QUALITY_FLAGS = {
     ".jpg": cv2.IMWRITE_JPEG_QUALITY,
     ".jpeg": cv2.IMWRITE_JPEG_QUALITY,
@@ -311,7 +316,10 @@ def convertImageFormat(
     The file is read as stored (``cv.IMREAD_UNCHANGED``: alpha channel and 16-bit depth are kept) with the EXIF
     orientation applied, since the tag is not carried over to the new file. Transparent images are composited
     onto ``background`` with :func:`flattenAlpha` when the target format has no alpha (JPEG), where
-    ``cv.imwrite`` would silently drop the alpha channel and expose the hidden pixels.
+    ``cv.imwrite`` would silently drop the alpha channel and expose the hidden pixels. 16-bit and float images
+    are scaled to 8-bit (``uint16`` by ``1 / 257``, floats from ``[0, 1]`` or by their maximum when above 1)
+    when the target format cannot store the depth (JPEG, WebP, AVIF, BMP, GIF ...), where ``cv.imwrite`` would
+    saturate them to white; PNG / TIFF / JPEG 2000 / PNM / PFM keep 16-bit and EXR / HDR / PFM / TIFF keep floats.
 
     Args:
         src: Path of the image to convert.
@@ -335,6 +343,9 @@ def convertImageFormat(
         return False
     if img.ndim == 3 and img.shape[2] == 4 and ext not in _ALPHA_FORMATS:
         img = flattenAlpha(img, background)
+    keeps_depth = ext in _FLOAT_FORMATS if np.issubdtype(img.dtype, np.floating) else ext in _UINT16_FORMATS
+    if img.dtype != np.uint8 and not keeps_depth:
+        img = to_uint8(img)
     params: list[int] = []
     if quality is not None and ext in _QUALITY_FLAGS:
         params = [_QUALITY_FLAGS[ext], int(quality)]

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .._validate import check_finite
+from .._validate import check_finite, check_size
 from ..imgproc.geometry import _order_corners
 
 __all__ = [
@@ -43,13 +43,6 @@ def _points(points: ArrayLike, name: str = "points") -> tuple[np.ndarray, tuple[
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be finite")
     return array.reshape(-1, 2), array.shape
-
-
-def _size(size: tuple[int, int]) -> tuple[float, float]:
-    width, height = float(size[0]), float(size[1])
-    if not (math.isfinite(width) and math.isfinite(height)) or width <= 0 or height <= 0:
-        raise ValueError(f"size must be positive (width, height), got {size}")
-    return width, height
 
 
 def _point(point: ArrayLike, name: str) -> tuple[float, float]:
@@ -149,7 +142,7 @@ def flipPoints(points: ArrayLike, size: tuple[int, int], flipCode: int) -> np.nd
         ValueError: If ``size`` is not positive.
     """
     pts, shape = _points(points)
-    width, height = _size(size)
+    width, height = check_size("size", size)
     out = pts.copy()
     if flipCode != 0:
         out[:, 0] = width - 1 - out[:, 0]
@@ -172,7 +165,7 @@ def normalizePoints(points: ArrayLike, size: tuple[int, int]) -> np.ndarray:
         ValueError: If ``size`` is not positive.
     """
     pts, shape = _points(points)
-    out: np.ndarray = pts / _size(size)
+    out: np.ndarray = pts / check_size("size", size)
     return out.reshape(shape)
 
 
@@ -190,7 +183,7 @@ def denormalizePoints(points: ArrayLike, size: tuple[int, int]) -> np.ndarray:
         ValueError: If ``size`` is not positive.
     """
     pts, shape = _points(points)
-    out: np.ndarray = pts * _size(size)
+    out: np.ndarray = pts * check_size("size", size)
     return out.reshape(shape)
 
 
@@ -208,7 +201,7 @@ def clipPoints(points: ArrayLike, size: tuple[int, int]) -> np.ndarray:
         ValueError: If ``size`` is not positive.
     """
     pts, shape = _points(points)
-    width, height = _size(size)
+    width, height = check_size("size", size)
     out: np.ndarray = np.clip(pts, 0, (width - 1, height - 1))
     return out.reshape(shape)
 

@@ -449,3 +449,18 @@ def test_loadModel_without_dnn_module(tmp_path, monkeypatch):
     model.write_bytes(b"x")
     with pytest.raises(RuntimeError, match=r"cv2.dnn"):
         loadModel(model)
+
+
+def test_loadModel_reads_the_file_only_for_buffer_formats(tmp_path, monkeypatch):
+    read = []
+    monkeypatch.setattr(np, "fromfile", lambda path, dtype=None: read.append(str(path)) or np.zeros(1, np.uint8))
+    monkeypatch.setattr(cv2.dnn, "readNet", lambda *args: object())
+    monkeypatch.setattr(cv2.dnn, "readNetFromONNX", lambda buffer: object(), raising=False)
+    weights = tmp_path / "m.caffemodel"
+    weights.write_bytes(b"x" * 10)
+    loadModel(weights)
+    assert read == []  # not loaded into memory: OpenCV opens the path itself
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"x")
+    loadModel(onnx)
+    assert read == [str(onnx)]

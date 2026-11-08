@@ -407,3 +407,28 @@ def test_blendImages() -> None:
         blendImages([a, b], weights=[1, -1])
     with pytest.raises(ValueError, match="weights"):
         blendImages([a, b], weights=[0, 0])
+
+
+def test_palette_numpy_array_is_one_color() -> None:
+    assert visualize._palette(np.array([0, 0, 255], np.uint8), 3) == [(0.0, 0.0, 255.0)] * 3
+    assert visualize._palette(np.float32(200), 2) == [200.0, 200.0]
+    assert visualize._palette(np.array([[255, 0, 0], [0, 255, 0]], np.uint8), 2) == [
+        (255.0, 0.0, 0.0),
+        (0.0, 255.0, 0.0),
+    ]
+    assert visualize._palette([200, 100], 2) == [200.0, 100.0]  # two gray levels, not one 2-channel color
+    img = bgr()
+    boxes = [((40, 30), (20, 10), 0.0), ((40, 30), (20, 10), 90.0)]
+    drawRotatedBoxes(img, boxes, colors=np.array([0, 0, 255], np.uint8), thickness=1)
+    drawn = img.reshape(-1, 3)[img.reshape(-1, 3).any(axis=1)]
+    assert len(drawn) > 0 and not drawn[:, :2].any() and drawn[:, 2].max() > 200  # red only (anti-aliased)
+
+
+def test_blendImages_single_channel_3d_inputs() -> None:
+    a = np.full((20, 30, 1), 0, np.uint8)
+    b = np.full((20, 30), 200, np.uint8)
+    assert blendImages([a, b]).shape == (20, 30, 1) and np.all(blendImages([a, b]) == 100)
+    assert blendImages([b, a]).shape == (20, 30) and np.all(blendImages([b, a]) == 100)
+    assert np.all(blendImages([a, a[:10, :10]]) == 0)  # (h, w, 1) resized: cv.resize drops the trailing 1
+    c = bgr(20, 30, 200)
+    assert blendImages([a, c]).shape == (20, 30, 1) and np.all(blendImages([a, c]) == 100)

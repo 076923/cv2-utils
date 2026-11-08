@@ -19,9 +19,10 @@ import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .._validate import check_color, check_finite, check_image_not_empty
+from .._validate import as_color, check_color, check_finite, check_image_not_empty, check_size, is_single_color
 from ..imgproc.color import distinctColors
 from ..imgproc.contour import approxContour, asContour, contoursToMask
+from ..imgproc.draw import _luminance
 from ..imgproc.mask import _foreground
 from .boxes import _boxes
 
@@ -52,13 +53,6 @@ __all__ = [
 Color = float | Sequence[float]
 
 
-def _size(size: tuple[int, int]) -> tuple[int, int]:
-    width, height = size
-    if width < 1 or height < 1:
-        raise ValueError(f"size must be at least 1x1, got {size}")
-    return int(width), int(height)
-
-
 def _polygon(polygon: ArrayLike, name: str = "polygon") -> np.ndarray:
     """One polygon as a float64 ``(N, 2)`` array (accepts ``(N, 1, 2)`` contours and point lists)."""
     array = np.asarray(polygon, dtype=np.float64)
@@ -66,27 +60,41 @@ def _polygon(polygon: ArrayLike, name: str = "polygon") -> np.ndarray:
         raise ValueError(f"{name} must not be empty")
     if array.shape[-1] != 2:
         raise ValueError(f"{name} must have 2 coordinates (x, y) per point, got shape {array.shape}")
+    if array.ndim > 3 or (array.ndim == 3 and array.shape[1] != 1):
+        raise ValueError(f"{name} must be (N, 2) points or an (N, 1, 2) contour, got shape {array.shape}")
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be finite")
     return array.reshape(-1, 2)
 
 
 def _polygons(polygons: Sequence[ArrayLike] | np.ndarray, name: str = "polygons") -> list[np.ndarray]:
-    """A sequence of polygons (or one polygon, as an ``(N, 2)`` array or point list) as float64 ``(N, 2)`` arrays."""
-    if not isinstance(polygons, np.ndarray):
-        try:
-            array = np.asarray(polygons, dtype=np.float64)
-        except (ValueError, TypeError):  # ragged: polygons of different lengths
-            return [_polygon(p, name) for p in polygons]
-    else:
-        array = polygons
-    if array.size == 0 and array.ndim <= 1:
+    """A sequence of polygons (or one polygon, as an ``(N, 2)`` array or point list) as float64 ``(N, 2)`` arrays.
+
+    Each polygon may be an ``(N, 2)`` array, an ``(N, 1, 2)`` contour or a list of ``(x, y)`` points, and the
+    polygons may have different lengths. The sequence is walked element-wise: ``np.asarray`` on the whole list
+    would turn equal-length contours into a 4-D array and ragged ones into an error.
+    """
+    if isinstance(polygons, np.ndarray):
+        if polygons.size == 0 and polygons.ndim <= 1:
+            return []
+        if polygons.ndim == 2 and polygons.shape[-1] == 2:
+            return [_polygon(polygons, name)]  # one polygon
+        if polygons.ndim == 3 and polygons.shape[-1] == 2:
+            return [_polygon(p, name) for p in polygons]  # equal-length polygons, or one (N, 1, 2) contour
+        raise ValueError(f"{name} must be a sequence of (N, 2) polygons, got shape {polygons.shape}")
+    items = list(polygons)
+    if len(items) == 0:
         return []
-    if array.ndim == 2 and array.shape[-1] == 2:
-        return [_polygon(array, name)]  # one polygon
-    if array.ndim == 3 and array.shape[-1] == 2:
-        return [_polygon(p, name) for p in array]  # equal-length polygons, or one (N, 1, 2) contour
-    raise ValueError(f"{name} must be a sequence of (N, 2) polygons, got shape {array.shape}")
+    if _is_point(items[0]):
+        return [_polygon(items, name)]  # one polygon as a list of (x, y) points
+    return [_polygon(p, name) for p in items]
+
+
+def _is_point(item: object) -> bool:
+    """Whether a sequence element is one ``(x, y)`` point rather than a polygon."""
+    if isinstance(item, np.ndarray):
+        return item.ndim == 1
+    return isinstance(item, Sequence) and len(item) == 2 and all(isinstance(v, (int, float, np.number)) for v in item)
 
 
 def _label_map(labels: np.ndarray, name: str = "labels") -> np.ndarray:
@@ -164,7 +172,7 @@ def polygonsToMask(polygons: Sequence[ArrayLike] | np.ndarray, size: tuple[int, 
     """
     if not 1 <= value <= 255:
         raise ValueError(f"value must be between 1 and 255, got {value}")
-    mask = contoursToMask([asContour(p) for p in _polygons(polygons)], _size(size))
+    mask = contoursToMask([asContour(p) for p in _polygons(polygons)], check_size("size", size))
     if value != 255:
         mask[mask != 0] = value
     return mask
@@ -377,7 +385,7 @@ def boxesToYolo(boxes: ArrayLike, size: tuple[int, int], classIds: ArrayLike | N
     Raises:
         ValueError: If ``size`` is not positive, the boxes are invalid, or ``classIds`` has the wrong length.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     array = _boxes(boxes, "boxes") if np.size(boxes) else np.zeros((0, 4))
     rows = np.stack(
         [
@@ -410,7 +418,7 @@ def yoloToBoxes(rows: ArrayLike, size: tuple[int, int]) -> tuple[np.ndarray, np.
     Raises:
         ValueError: If ``size`` is not positive or the rows do not have 4 or more values.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     array = np.asarray(rows, dtype=np.float64)
     if array.size == 0:
         return np.zeros((0, 4), dtype=np.float64), np.zeros(0, dtype=np.int64)
@@ -443,7 +451,7 @@ def readYoloLabels(filename: str | os.PathLike[str], size: tuple[int, int]) -> t
     Raises:
         ValueError: If ``size`` is not positive, or a line does not have at least 5 numbers.
     """
-    _size(size)
+    check_size("size", size)
     path = Path(filename)
     rows: list[list[float]] = []
     if path.is_file():
@@ -656,16 +664,14 @@ def drawPolygons(
     palette: list[Color]
     if color is None:
         palette = list(distinctColors(max(count, 1)))
-    elif isinstance(color, (int, float)) or (len(color) in (3, 4) and all(isinstance(c, (int, float)) for c in color)):
-        palette = [color] * max(count, 1)  # type: ignore[list-item]
+    elif is_single_color(color):
+        palette = [as_color(color)] * max(count, 1)
     else:
-        palette = list(color)
+        palette = [as_color(c) for c in color]  # type: ignore[union-attr]
         if len(palette) != count:
             raise ValueError(f"color must have one entry per polygon, got {len(palette)} for {count} polygons")
     for entry in palette:
-        check_color(
-            "color", [float(entry)] if isinstance(entry, (int, float)) else [float(c) for c in entry], src.dtype
-        )
+        check_color("color", [entry] if isinstance(entry, float) else list(entry), src.dtype)
     if count == 0 or alpha == 0:
         return src
     canvas = src.copy() if alpha < 1 else src
@@ -680,22 +686,15 @@ def drawPolygons(
             (tw, th), baseline = cv2.getTextSize(labels[i], cv2.FONT_HERSHEY_SIMPLEX, fontScale, 1)
             top = max(y - th - baseline - 2, 0)
             cv2.rectangle(canvas, (x, top), (x + tw + 2, top + th + baseline + 2), palette[i], cv2.FILLED)
-            text_color = 0 if _luminance(palette[i]) > 140 else 255
+            # A scalar 255 would be expanded by OpenCV to (255, 0, 0): blue text on BGR images.
+            level = 0 if _luminance(palette[i]) > 140 else 255
+            text_color: Color = level if canvas.ndim == 2 else (level,) * canvas.shape[2]
             cv2.putText(
                 canvas, labels[i], (x + 1, top + th + 1), cv2.FONT_HERSHEY_SIMPLEX, fontScale, text_color, 1, lineType
             )
     if alpha < 1:
         cv2.addWeighted(src, 1 - alpha, canvas, alpha, 0, dst=src)
     return src
-
-
-def _luminance(color: Color) -> float:
-    if isinstance(color, (int, float)):
-        return float(color)
-    values = [float(c) for c in color]
-    if len(values) < 3:
-        return values[0]
-    return 0.114 * values[0] + 0.587 * values[1] + 0.299 * values[2]
 
 
 def drawSegmentation(
@@ -765,7 +764,7 @@ def flipBoxes(boxes: ArrayLike, size: tuple[int, int], flipCode: int) -> np.ndar
     Raises:
         ValueError: If ``size`` is not positive, the boxes are invalid, or ``flipCode`` is not 0, 1 or -1.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     code = _flip_code(flipCode)
     single = np.ndim(boxes) == 1 and np.size(boxes) > 0
     out = _boxes(boxes, "boxes").copy() if np.size(boxes) else np.zeros((0, 4))
@@ -793,7 +792,7 @@ def _flip_polygon(points: ArrayLike, size: tuple[int, int], flipCode: int) -> np
     Raises:
         ValueError: If ``size`` is not positive, the points are empty or not 2-D, or ``flipCode`` is not 0, 1 or -1.
     """
-    width, height = _size(size)
+    width, height = check_size("size", size)
     code = _flip_code(flipCode)
     out = _polygon(points, "points").copy()
     if code in (1, -1):
@@ -820,6 +819,6 @@ def flipPolygons(polygons: Sequence[ArrayLike], size: tuple[int, int], flipCode:
     Raises:
         ValueError: If ``size`` is not positive, a polygon is empty or not 2-D, or ``flipCode`` is not 0, 1 or -1.
     """
-    _size(size)
+    check_size("size", size)
     _flip_code(flipCode)
     return [_flip_polygon(p, size, flipCode) for p in _polygons(polygons)]

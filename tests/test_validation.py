@@ -366,3 +366,59 @@ def test_imreadUrl_maxBytes_uses_content_length_before_downloading(monkeypatch):
     monkeypatch.setattr(urlread_module, "urlopen", lambda request, timeout=None: Response())
     with pytest.raises(ValueError, match="maxBytes"):
         cv.imreadUrl("https://example.invalid/big.png", maxBytes=1000)
+
+
+# --- shared helpers in cv2u._validate -------------------------------------------------------------------------------
+
+
+def test_check_size_accepts_positive_sizes_and_names_the_argument():
+    from cv2u._validate import check_size
+
+    assert check_size("size", (3, 4)) == (3, 4)
+    assert check_size("size", [2.0, 5.0]) == (2, 5)
+    for bad in [(0, 4), (3, -1), (NAN, 4), (3, INF), (3,)]:
+        with pytest.raises(ValueError, match="patch"):
+            check_size("patch", bad)
+
+
+def test_check_uint8_rejects_other_depths_empty_and_two_channel_images():
+    from cv2u._validate import check_uint8
+
+    assert check_uint8("src", IMG) == 3 and check_uint8("src", GRAY) == 1
+    with pytest.raises(ValueError, match=r"src.*uint8"):
+        check_uint8("src", IMG.astype(np.float32))
+    with pytest.raises(ValueError, match=r"src.*empty"):
+        check_uint8("src", EMPTY)
+    with pytest.raises(ValueError, match=r"src.*channels"):
+        check_uint8("src", np.zeros((4, 4, 2), np.uint8))
+
+
+def test_is_single_color_and_as_color():
+    from cv2u._validate import as_color, is_single_color
+
+    assert (
+        is_single_color(200)
+        and is_single_color(1.5)
+        and is_single_color(np.uint8(3))
+        and is_single_color(np.float32(1))
+    )
+    assert is_single_color((0, 0, 255)) and is_single_color([0, 0, 255, 255]) and is_single_color([7])
+    assert is_single_color(np.array([0, 0, 255], np.uint8)) and is_single_color(np.array([0.5, 0.5, 0.5]))
+    assert is_single_color((np.uint8(1), np.uint8(2), np.uint8(3)))
+    assert not is_single_color([(0, 0, 255), (255, 0, 0)])
+    assert not is_single_color(np.array([[0, 0, 255], [255, 0, 0]], np.uint8))
+    assert not is_single_color([200, 100])  # two gray levels, no image has 2 channels
+    assert not is_single_color("red") and not is_single_color(True) and not is_single_color(None)
+    assert not is_single_color([]) and not is_single_color([[1, 2, 3]])
+    assert as_color(np.array([0, 0, 255], np.uint8)) == (0.0, 0.0, 255.0)
+    assert as_color(np.uint8(9)) == 9.0 and as_color(3) == 3.0 and as_color([1, 2, 3]) == (1.0, 2.0, 3.0)
+
+
+def test_drawBoxes_numpy_color_is_one_color():
+    img = IMG.copy()
+    cv.drawBoxes(img, [(5, 5, 10, 10), (20, 20, 10, 10)], colors=np.array([0, 0, 255], np.uint8), thickness=1)
+    assert img[5, 10].tolist() == [0, 0, 255] and img[20, 25].tolist() == [0, 0, 255]
+    img = IMG.copy()
+    cv.drawBoxes(img, [(5, 5, 10, 10), (20, 20, 10, 10)], colors=np.array([[255, 0, 0], [0, 255, 0]], np.uint8))
+    assert img[5, 10].tolist() == [255, 0, 0] and img[20, 25].tolist() == [0, 255, 0]
+    cv.drawBoxes(img, [(5, 5, 10, 10)], labels=["a"], colors=np.uint8(255))
