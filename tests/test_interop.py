@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, features
 
 import cv2u as cv
 
@@ -103,6 +103,8 @@ _ALL_MODES = {
 
 @pytest.mark.parametrize("mode", sorted(_ALL_MODES))
 def test_fromPillow_accepts_every_mode(mode):
+    if mode == "LAB" and not features.check("littlecms2"):
+        pytest.skip("Pillow was built without littlecms, so LAB cannot be converted")
     shape, dtype = _ALL_MODES[mode]
     out = cv.fromPillow(Image.new(mode, (3, 2)))
     assert out.shape == shape
