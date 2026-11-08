@@ -1,10 +1,11 @@
 import math
-from typing import Any
+from collections.abc import Sequence
 
 import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
+from .._validate import check_finite, check_image_not_empty
 from ..core.rotate import rotateEx
 from .color import toGray
 
@@ -42,8 +43,10 @@ def fourPointTransform(
         The warped image.
 
     Raises:
-        ValueError: If ``pts`` does not hold exactly 4 points, or the points are degenerate.
+        ValueError: If ``src`` is empty, ``pts`` does not hold exactly 4 finite points, the points are degenerate,
+            or ``size`` is not positive.
     """
+    check_image_not_empty("src", src)
     corners = np.asarray(pts, dtype=np.float32).reshape(-1, 2)
     if corners.shape != (4, 2):
         raise ValueError(f"pts must contain exactly 4 points, got {corners.shape[0]}")
@@ -78,7 +81,7 @@ def translate(
     dx: float,
     dy: float,
     borderMode: int = cv2.BORDER_CONSTANT,
-    borderValue: float | tuple[float, ...] = 0,
+    borderValue: float | Sequence[float] = 0,
 ) -> np.ndarray:
     """Shift an image by ``(dx, dy)`` pixels, keeping its size (OpenCV has no function for this).
 
@@ -88,7 +91,16 @@ def translate(
         dy: Shift down (negative: up).
         borderMode: How to fill the uncovered area, as for ``cv.warpAffine`` (e.g. ``cv.BORDER_REPLICATE``).
         borderValue: Fill color for ``cv.BORDER_CONSTANT``.
+
+    Returns:
+        The shifted image, with the shape and dtype of ``src``.
+
+    Raises:
+        ValueError: If ``src`` is empty, or ``dx`` or ``dy`` is not finite.
     """
+    check_image_not_empty("src", src)
+    check_finite("dx", dx)
+    check_finite("dy", dy)
     h, w = src.shape[:2]
     matrix = np.array([[1, 0, dx], [0, 1, dy]], dtype=np.float64)
     dst: np.ndarray = cv2.warpAffine(src, matrix, (w, h), borderMode=borderMode, borderValue=borderValue)
@@ -134,8 +146,8 @@ def cropRotatedRect(
     src: np.ndarray,
     rect: tuple[tuple[float, float], tuple[float, float], float],
     flags: int = cv2.INTER_LINEAR,
-    borderMode: int = cv2.BORDER_REPLICATE,
-    borderValue: float | tuple[float, ...] = 0,
+    borderMode: int = cv2.BORDER_CONSTANT,
+    borderValue: float | Sequence[float] = 0,
 ) -> np.ndarray:
     """Cut out a rotated rectangle as an upright image (e.g. a tilted label or license plate).
 
@@ -146,16 +158,21 @@ def cropRotatedRect(
         src: Image to crop from.
         rect: The rotated box, as returned by ``cv.minAreaRect``.
         flags: Interpolation, as for ``cv.warpAffine``.
-        borderMode: How to fill the parts of the box outside the image, as for ``cv.warpAffine``.
+        borderMode: How to fill the parts of the box outside the image, as for ``cv.warpAffine``
+            (``cv.BORDER_CONSTANT`` with ``borderValue`` by default, like ``cv.warpAffine``).
         borderValue: Fill color for ``cv.BORDER_CONSTANT``.
 
     Returns:
         An image of size ``(round(width), round(height))`` whose x axis runs along the box's width side.
 
     Raises:
-        ValueError: If the box is smaller than one pixel.
+        ValueError: If ``src`` is empty, ``rect`` is not finite, or the box is smaller than one pixel.
     """
+    check_image_not_empty("src", src)
     (cx, cy), (w, h), angle = rect
+    for name, value in (("rect center", cx), ("rect center", cy), ("rect size", w), ("rect size", h)):
+        check_finite(name, value)
+    check_finite("rect angle", angle)
     width, height = round(w), round(h)
     if width < 1 or height < 1:
         raise ValueError(f"rect must be at least 1x1 pixel, got {w}x{h}")
@@ -194,7 +211,7 @@ def deskew(
     src: np.ndarray,
     maxAngle: float = 45.0,
     borderMode: int = cv2.BORDER_CONSTANT,
-    borderValue: Any = None,
+    borderValue: float | Sequence[float] | None = None,
 ) -> tuple[np.ndarray, float]:
     """Straighten a scanned or photographed page whose text lines are tilted.
 
@@ -214,8 +231,10 @@ def deskew(
         (positive is counter-clockwise, as for ``cv.getRotationMatrix2D``). ``angle`` is 0 for an empty page.
 
     Raises:
-        ValueError: If ``maxAngle`` is negative or not below 90.
+        ValueError: If ``src`` is empty, or ``maxAngle`` is negative or not below 90.
     """
+    check_image_not_empty("src", src)
+    check_finite("maxAngle", maxAngle)
     if not 0 <= maxAngle < 90:
         raise ValueError(f"maxAngle must be in [0, 90), got {maxAngle}")
     binary = _ink(src)
@@ -226,7 +245,7 @@ def deskew(
         best = max(coarse, key=lambda a: _line_score(binary, a))
         fine = {min(max(round(best + step / 10, 1), -maxAngle), maxAngle) for step in range(-10, 11)}
         angle = max(sorted(fine), key=lambda a: _line_score(binary, a))
-    if borderValue is None and borderMode == cv2.BORDER_CONSTANT:
+    if borderValue is None:
         edge = np.concatenate([src[0], src[-1], src[:, 0], src[:, -1]]).reshape(-1, *src.shape[2:3])
         borderValue = tuple(float(v) for v in np.median(edge, axis=0).ravel())
     return rotateEx(src, angle, borderMode=borderMode, borderValue=borderValue), angle

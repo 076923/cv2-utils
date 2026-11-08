@@ -72,14 +72,14 @@ def test_overlayImage_opaque(background):
     assert (background == 100).all()  # src is not modified
 
 
-def test_overlayImage_alpha_and_opacity(background):
+def test_overlayImage_alpha_channel_and_alpha(background):
     logo = np.zeros((1, 2, 4), np.uint8)
     logo[0, 0] = (200, 200, 200, 255)  # opaque
     logo[0, 1] = (200, 200, 200, 0)  # fully transparent
     out = cv.overlayImage(background, logo)
     assert tuple(out[0, 0]) == (200, 200, 200)
     assert tuple(out[0, 1]) == (100, 100, 100)
-    half = cv.overlayImage(background, logo, opacity=0.5)
+    half = cv.overlayImage(background, logo, alpha=0.5)
     assert tuple(half[0, 0]) == (150, 150, 150)
 
 
@@ -106,7 +106,8 @@ def test_overlayImage_gray_and_bgra_targets():
     [
         (np.zeros((4, 4), np.float32), np.zeros((2, 2), np.uint8), {}, "8-bit"),
         (np.zeros((4, 4), np.uint8), np.zeros((2, 2, 2), np.uint8), {}, "channels"),
-        (np.zeros((4, 4), np.uint8), np.zeros((2, 2), np.uint8), {"opacity": 1.5}, "opacity"),
+        (np.zeros((4, 4), np.uint8), np.zeros((2, 2), np.uint8), {"alpha": 1.5}, "alpha"),
+        (np.zeros((4, 4), np.uint8), np.zeros((2, 2), np.uint8), {"alpha": float("nan")}, "alpha"),
     ],
 )
 def test_overlayImage_validation(src, overlay, kwargs, match):

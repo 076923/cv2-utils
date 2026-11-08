@@ -17,13 +17,13 @@ class FeatureMatches(NamedTuple):
     """The result of :func:`matchFeatures`."""
 
     srcPoints: np.ndarray
-    """Matched keypoint locations in the first image, shape ``(N, 2)`` float32."""
+    """Matched keypoint locations in ``src``, shape ``(N, 2)`` float32."""
     dstPoints: np.ndarray
-    """The corresponding locations in the second image, shape ``(N, 2)`` float32."""
+    """The corresponding locations in ``reference``, shape ``(N, 2)`` float32 (``dst`` as in ``cv.findHomography``)."""
     srcKeypoints: list[cv2.KeyPoint]
-    """All keypoints found in the first image (for ``cv.drawMatches``)."""
+    """All keypoints found in ``src`` (for ``cv.drawMatches``)."""
     dstKeypoints: list[cv2.KeyPoint]
-    """All keypoints found in the second image."""
+    """All keypoints found in ``reference``."""
     matches: list[cv2.DMatch]
     """The matches that passed the ratio test (for ``cv.drawMatches``), one per row of the point arrays."""
 
@@ -38,12 +38,12 @@ def _detector(method: str, maxFeatures: int) -> cv2.Feature2D:
 
 def matchFeatures(
     src: np.ndarray,
-    dst: np.ndarray,
+    reference: np.ndarray,
     method: Detector = "ORB",
     maxFeatures: int = 2000,
     ratio: float = 0.75,
     mask: np.ndarray | None = None,
-    dstMask: np.ndarray | None = None,
+    referenceMask: np.ndarray | None = None,
 ) -> FeatureMatches:
     """Find corresponding points between two images (detect, describe, match, Lowe's ratio test).
 
@@ -53,23 +53,24 @@ def matchFeatures(
 
     Args:
         src: First image (any channel count; converted to grayscale).
-        dst: Second image.
+        reference: Second image, the one ``src`` is matched to (as in :func:`alignImages`).
         method: ``"ORB"`` (default, fast, binary descriptors) or ``"SIFT"`` (slower, more robust to scale and
             lighting). Both ship with every OpenCV distribution from 4.4 on.
         maxFeatures: Keypoint limit for ORB and SIFT.
         ratio: Lowe's ratio; lower keeps fewer but more reliable matches.
         mask: Optional 8-bit mask of where to look for keypoints in ``src``.
-        dstMask: The same for ``dst``.
+        referenceMask: The same for ``reference``.
 
     Returns:
         A :class:`FeatureMatches`. ``srcPoints`` and ``dstPoints`` are empty ``(0, 2)`` arrays if nothing
         matches; pass them to ``cv.findHomography`` or ``cv.estimateAffinePartial2D`` for the transform.
 
     Raises:
-        ValueError: If an image is empty, ``method`` is unknown, or ``ratio`` is not in ``(0, 1]``.
+        ValueError: If an image is empty or has an unsupported channel count, ``method`` is unknown, ``ratio`` is
+            not in ``(0, 1]``, or ``maxFeatures`` is not positive.
     """
     check_image_not_empty("src", src)
-    check_image_not_empty("dst", dst)
+    check_image_not_empty("reference", reference)
     check_finite("ratio", ratio, positive=True)
     if ratio > 1:
         raise ValueError(f"ratio must be in (0, 1], got {ratio}")
@@ -77,7 +78,7 @@ def matchFeatures(
         raise ValueError(f"maxFeatures must be positive, got {maxFeatures}")
     detector = _detector(method, maxFeatures)
     kp1, des1 = detector.detectAndCompute(toGray(src), mask)
-    kp2, des2 = detector.detectAndCompute(toGray(dst), dstMask)
+    kp2, des2 = detector.detectAndCompute(toGray(reference), referenceMask)
     empty = np.zeros((0, 2), np.float32)
     if des1 is None or des2 is None or len(kp1) < 2 or len(kp2) < 2:
         return FeatureMatches(empty, empty, list(kp1), list(kp2), [])
@@ -128,8 +129,11 @@ def alignImages(
         transform, ``3x3`` for a homography or ``2x3`` otherwise, mapping ``src`` coordinates to ``reference``.
 
     Raises:
-        ValueError: If too few matches are found, or the transform cannot be estimated.
+        ValueError: If an image is empty, ``ransacThreshold`` is not positive, ``minMatches`` is too small for
+            ``motion``, too few matches are found, or the transform cannot be estimated.
     """
+    check_image_not_empty("src", src)
+    check_image_not_empty("reference", reference)
     check_finite("ransacThreshold", ransacThreshold, positive=True)
     if minMatches < 4 if motion == "homography" else minMatches < 3:
         raise ValueError(f"minMatches must be at least {4 if motion == 'homography' else 3}, got {minMatches}")

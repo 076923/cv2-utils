@@ -6,16 +6,12 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from .._validate import check_color, check_image_not_empty
+from .._validate import check_channels, check_color, check_finite, check_image_not_empty
 from ..imgproc.resize import letterbox
 
 __all__ = ["hconcatEx", "montage", "overlayImage", "vconcatEx"]
 
 _UPCONVERT = {(1, 3): cv2.COLOR_GRAY2BGR, (1, 4): cv2.COLOR_GRAY2BGRA, (3, 4): cv2.COLOR_BGR2BGRA}
-
-
-def _channels(img: np.ndarray) -> int:
-    return 1 if img.ndim == 2 else int(img.shape[2])
 
 
 def _as3d(img: np.ndarray) -> np.ndarray:
@@ -48,14 +44,14 @@ def _concat(images: Sequence[np.ndarray], axis: int, color: float | Sequence[flo
     if len(dtypes) != 1:
         raise ValueError(f"all images must have the same dtype, got {sorted(str(d) for d in dtypes)}")
     for img in images:
-        if img.ndim not in (2, 3) or _channels(img) not in (1, 3, 4):
-            raise ValueError(f"images must have 1, 3 or 4 channels, got shape {img.shape}")
+        check_channels("images", img)
         check_image_not_empty("images", img)
 
-    channels = max(_channels(img) for img in images)
+    counts = [check_channels("images", img) for img in images]
+    channels = max(counts)
     unified = [
-        _as3d(img if _channels(img) == channels else cv2.cvtColor(img, _UPCONVERT[(_channels(img), channels)]))
-        for img in images
+        _as3d(img if count == channels else cv2.cvtColor(img, _UPCONVERT[(count, channels)]))
+        for img, count in zip(images, counts, strict=True)
     ]
     dtype = unified[0].dtype
     values = _fill_value(color, channels)
@@ -144,9 +140,7 @@ def montage(
     return vconcatEx(rows, color=color, gap=gap)
 
 
-def overlayImage(
-    src: np.ndarray, overlay: np.ndarray, org: tuple[int, int] = (0, 0), opacity: float = 1.0
-) -> np.ndarray:
+def overlayImage(src: np.ndarray, overlay: np.ndarray, org: tuple[int, int] = (0, 0), alpha: float = 1.0) -> np.ndarray:
     """Draw ``overlay`` on top of ``src`` at ``org``, using the overlay's alpha channel if it has one.
 
     Typical use: putting a transparent PNG (read with ``cv.IMREAD_UNCHANGED``) such as a logo onto a photo.
@@ -156,23 +150,26 @@ def overlayImage(
         src: 8-bit grayscale, BGR or BGRA image. It is not modified.
         overlay: 8-bit grayscale, BGR or BGRA image. Its alpha channel (if any) controls the blending per pixel.
         org: Position of the overlay's top-left corner in ``src``, as ``(x, y)``.
-        opacity: Overall opacity from 0 (invisible) to 1, multiplied with the overlay's alpha.
+        alpha: Overall opacity from 0 (invisible) to 1, multiplied with the overlay's alpha channel (the same
+            name as in :func:`overlayMask` and ``cv.addWeighted``).
 
     Returns:
         A new image with the same shape as ``src``.
 
     Raises:
-        ValueError: If an image is not 8-bit or has an unsupported channel count, or ``opacity`` is outside ``[0, 1]``.
+        ValueError: If an image is not 8-bit, is empty or has an unsupported channel count, or ``alpha`` is outside
+            ``[0, 1]``.
     """
     if src.dtype != np.uint8 or overlay.dtype != np.uint8:
         raise ValueError(f"src and overlay must be 8-bit (uint8), got {src.dtype} and {overlay.dtype}")
     check_image_not_empty("src", src)
     check_image_not_empty("overlay", overlay)
-    for name, img in (("src", src), ("overlay", overlay)):
-        if _channels(img) not in (1, 3, 4):
-            raise ValueError(f"{name} must have 1, 3 or 4 channels, got shape {img.shape}")
-    if not 0.0 <= opacity <= 1.0:
-        raise ValueError(f"opacity must be between 0 and 1, got {opacity}")
+    check_channels("src", src)
+    check_channels("overlay", overlay)
+    check_finite("alpha", alpha)
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError(f"alpha must be between 0 and 1, got {alpha}")
+    opacity = float(alpha)
 
     dst = src.copy()
     x, y = org
@@ -185,12 +182,12 @@ def overlayImage(
 
     patch = _as3d(overlay[y0 - y : y1 - y, x0 - x : x1 - x])
     if patch.shape[2] == 4:
-        alpha = patch[..., 3:4].astype(np.float32) / 255.0
+        weight = patch[..., 3:4].astype(np.float32) / 255.0
         fg = patch[..., :3]
     else:
-        alpha = np.ones((*patch.shape[:2], 1), np.float32)
+        weight = np.ones((*patch.shape[:2], 1), np.float32)
         fg = patch
-    alpha *= opacity
+    weight *= opacity
 
     region = _as3d(dst[y0:y1, x0:x1])  # a view into dst
     src_channels = region.shape[2]
@@ -199,10 +196,10 @@ def overlayImage(
         fg = _as3d(cv2.cvtColor(fg, cv2.COLOR_BGR2GRAY if color_channels == 1 else cv2.COLOR_GRAY2BGR))
 
     base = region[..., :color_channels].astype(np.float32)
-    blended = base * (1 - alpha) + fg.astype(np.float32) * alpha
+    blended = base * (1 - weight) + fg.astype(np.float32) * weight
     region[..., :color_channels] = np.clip(np.rint(blended), 0, 255).astype(np.uint8)
     if src_channels == 4:
         # "Over" compositing for the destination alpha.
         dst_alpha = region[..., 3:4].astype(np.float32) / 255.0
-        region[..., 3:4] = np.rint((alpha + dst_alpha * (1 - alpha)) * 255).astype(np.uint8)
+        region[..., 3:4] = np.rint((weight + dst_alpha * (1 - weight)) * 255).astype(np.uint8)
     return dst

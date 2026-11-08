@@ -4,21 +4,9 @@ import cv2
 import numpy as np
 
 from .._validate import check_finite, check_image_not_empty
-from .color import toGray
-from .edges import autoCanny
+from .edges import _gray8, autoCanny
 
-__all__ = ["detectBlobs", "findCircles", "findLines"]
-
-
-def _gray8(src: np.ndarray) -> np.ndarray:
-    """Grayscale 8-bit view of any image (float or 16-bit images are stretched to 0..255)."""
-    gray = toGray(src)
-    if gray.dtype == np.uint8:
-        return gray
-    values = gray.astype(np.float64)
-    low, high = float(np.min(values)), float(np.max(values))
-    scaled = (values - low) * (255.0 / (high - low)) if high > low else np.zeros_like(values)
-    return np.asarray(np.rint(scaled), dtype=np.uint8)
+__all__ = ["findBlobs", "findCircles", "findLines"]
 
 
 def findLines(
@@ -36,7 +24,7 @@ def findLines(
     works (edges come from :func:`autoCanny` unless ``edges`` is given) and the result is always an array.
 
     Args:
-        src: Grayscale, BGR or BGRA image.
+        src: Grayscale, BGR or BGRA image (16-bit and float images are stretched to 8 bits).
         minLength: Shortest segment to report, in pixels.
         maxGap: Largest gap bridged between collinear edge pixels.
         threshold: Accumulator votes a line needs (``cv.HoughLinesP``).
@@ -57,7 +45,7 @@ def findLines(
     check_finite("theta", theta, positive=True)
     if threshold < 1:
         raise ValueError(f"threshold must be positive, got {threshold}")
-    binary = autoCanny(src) if edges is None else np.asarray(edges != 0, np.uint8) * 255
+    binary = autoCanny(_gray8(src)) if edges is None else np.asarray(edges != 0, np.uint8) * 255
     found = cv2.HoughLinesP(binary, rho, theta, threshold, minLineLength=minLength, maxLineGap=maxGap)
     if found is None or len(found) == 0:
         return np.zeros((0, 4), dtype=np.float64)
@@ -94,11 +82,14 @@ def findCircles(
         A float64 array of shape ``(N, 3)``; empty ``(0, 3)`` when nothing is found.
 
     Raises:
-        ValueError: If ``src`` is empty, a radius is negative, ``blur`` is even, or a threshold is not positive.
+        ValueError: If ``src`` is empty, ``minRadius`` or ``maxRadius`` is negative, ``blur`` is even, or a
+            threshold is not positive.
     """
     check_image_not_empty("src", src)
-    if minRadius < 0 or maxRadius < 0:
-        raise ValueError(f"radii must not be negative, got {minRadius} and {maxRadius}")
+    if minRadius < 0:
+        raise ValueError(f"minRadius must not be negative, got {minRadius}")
+    if maxRadius < 0:
+        raise ValueError(f"maxRadius must not be negative, got {maxRadius}")
     if blur < 0 or (blur and blur % 2 == 0):
         raise ValueError(f"blur must be 0 or an odd kernel size, got {blur}")
     check_finite("sensitivity", sensitivity, positive=True)
@@ -124,10 +115,11 @@ def findCircles(
     return found.reshape(-1, 3).astype(np.float64)
 
 
-def detectBlobs(
+def findBlobs(
     src: np.ndarray,
     minArea: float = 10,
     maxArea: float | None = None,
+    *,
     dark: bool = True,
     minCircularity: float | None = None,
     minConvexity: float | None = None,

@@ -75,10 +75,10 @@ def test_peakColors_minRegion_removes_speckles():
     assert len(centers) == 2
 
 
-def test_peakColors_works_with_drawDBSCAN():
+def test_peakColors_works_with_drawClusters():
     img = _three_colors()
     maps, _ = cv.peakColors(img)
-    assert len(np.unique(cv.drawDBSCAN(img, maps, maps.ravel()).reshape(-1, 3), axis=0)) == 3
+    assert len(np.unique(cv.drawClusters(img, maps).reshape(-1, 3), axis=0)) == 3
 
 
 def test_peakColors_needs_no_extra(monkeypatch):

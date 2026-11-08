@@ -60,6 +60,7 @@ def test_clipBoxes():
 
 def test_scaleBoxes_undoes_a_letterbox(scene):
     _, scale, (left, top) = cv.letterbox(scene, (160, 160))
+    assert isinstance(cv.letterbox(scene, (160, 160)), cv.Letterbox)
     box = np.array([80 - 30, 80 - 30, 60, 60], np.float64)  # the first disc in the original
     small = cv.scaleBoxes(box, scale, (left, top))
     np.testing.assert_allclose(cv.scaleBoxes(small, scale, (left, top), inverse=True), box)
@@ -70,7 +71,7 @@ def test_scaleBoxes_undoes_a_letterbox(scene):
 
 def test_expandBoxes():
     np.testing.assert_array_equal(cv.expandBoxes([10, 10, 20, 20], ratio=0.5), [0, 0, 40, 40])
-    np.testing.assert_array_equal(cv.expandBoxes([10, 10, 20, 20], pixels=2), [8, 8, 24, 24])
+    np.testing.assert_array_equal(cv.expandBoxes([10, 10, 20, 20], margin=2), [8, 8, 24, 24])
     np.testing.assert_array_equal(cv.expandBoxes([10, 10, 20, 20], ratio=0.5, size=(25, 100)), [0, 0, 25, 40])
     np.testing.assert_array_equal(cv.expandBoxes([10, 10, 20, 20], ratio=-1), [20, 20, 0, 0])  # never negative
     assert cv.expandBoxes(BOXES, 0.1).shape == (3, 4)
@@ -112,12 +113,12 @@ def test_findCircles_validation(scene, kwargs):
 
 
 def test_detectBlobs(scene):
-    blobs = cv.detectBlobs(scene, minArea=500, maxArea=5000, minCircularity=0.8)
+    blobs = cv.findBlobs(scene, minArea=500, maxArea=5000, minCircularity=0.8)
     assert blobs.shape == (2, 3)
     assert blobs[0, 2] >= blobs[1, 2]  # largest first
     assert abs(blobs[0, 0] - 80) <= 2 and abs(blobs[0, 1] - 80) <= 2
-    assert cv.detectBlobs(255 - scene, minArea=500, minCircularity=0.8).shape == (0, 3)  # the discs are light now
-    assert cv.detectBlobs(255 - scene, minArea=500, dark=False, minCircularity=0.8).shape == (2, 3)
+    assert cv.findBlobs(255 - scene, minArea=500, minCircularity=0.8).shape == (0, 3)  # the discs are light now
+    assert cv.findBlobs(255 - scene, minArea=500, dark=False, minCircularity=0.8).shape == (2, 3)
 
 
 @pytest.mark.parametrize(
@@ -125,7 +126,7 @@ def test_detectBlobs(scene):
 )
 def test_detectBlobs_validation(scene, kwargs):
     with pytest.raises(ValueError):
-        cv.detectBlobs(scene, **kwargs)
+        cv.findBlobs(scene, **kwargs)
 
 
 # --- binarize / morphology -----------------------------------------------------------
@@ -199,16 +200,16 @@ def test_applyMask():
         cv.applyMask(img, mask[:2])
 
 
-def test_centerCrop():
+def test_cropCenter():
     img = np.arange(100 * 60).reshape(60, 100).astype(np.uint8)
-    out = cv.centerCrop(img, 20)
+    out = cv.cropCenter(img, 20)
     assert out.shape == (20, 20)
     np.testing.assert_array_equal(out, img[20:40, 40:60])
-    assert cv.centerCrop(img, (30, 10)).shape == (10, 30)
-    assert cv.centerCrop(img, (200, 10)).shape == (10, 100)  # clipped
-    assert cv.centerCrop(img, (200, 10), fill=0).shape == (10, 200)  # padded
+    assert cv.cropCenter(img, (30, 10)).shape == (10, 30)
+    assert cv.cropCenter(img, (200, 10)).shape == (10, 100)  # clipped
+    assert cv.cropCenter(img, (200, 10), fill=0).shape == (10, 200)  # padded
     with pytest.raises(ValueError, match="size"):
-        cv.centerCrop(img, 0)
+        cv.cropCenter(img, 0)
 
 
 # --- drawing -------------------------------------------------------------------------
@@ -297,6 +298,13 @@ def test_matchFeatures_nothing_to_match():
 def test_matchFeatures_validation(photo, kwargs):
     with pytest.raises(ValueError):
         cv.matchFeatures(photo, photo, **kwargs)
+
+
+def test_matchFeatures_masks(photo):
+    mask = np.zeros(photo.shape[:2], np.uint8)
+    mask[:, : photo.shape[1] // 2] = 255
+    found = cv.matchFeatures(photo, photo, mask=mask, referenceMask=mask)
+    assert found.srcPoints[:, 0].max() <= photo.shape[1] // 2 + 20
 
 
 @pytest.mark.parametrize("motion", ["homography", "affine", "similarity"])

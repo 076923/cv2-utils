@@ -35,7 +35,16 @@ def test_autoCanny_finds_the_shapes(shapes):
     assert not edges[100:, :].any()  # nothing below the shapes
 
 
-@pytest.mark.parametrize(("src", "sigma"), [(np.zeros((4, 4), np.float32), 0.33), (np.zeros((4, 4), np.uint8), 1.5)])
+def test_autoCanny_accepts_16_bit_and_float_images(shapes):
+    # Stretched to 8 bits first: cv.Canny itself rejects anything but uint8.
+    np.testing.assert_array_equal(cv.autoCanny(shapes.astype(np.uint16) * 257), cv.autoCanny(shapes))
+    np.testing.assert_array_equal(cv.autoCanny(shapes.astype(np.float32) / 255), cv.autoCanny(shapes))
+
+
+@pytest.mark.parametrize(
+    ("src", "sigma"),
+    [(np.zeros((0, 4), np.uint8), 0.33), (np.zeros((4, 4), np.uint8), 1.5), (np.zeros((4, 4, 2)), 0.3)],
+)
 def test_autoCanny_validation(src, sigma):
     with pytest.raises(ValueError):
         cv.autoCanny(src, sigma=sigma)

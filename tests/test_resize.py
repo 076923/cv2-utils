@@ -44,7 +44,10 @@ def test_resizeEx_validation(img, kwargs):
 
 
 def test_letterbox_shape_scale_and_offset(img):
-    dst, scale, (left, top) = cv.letterbox(img, (300, 300), color=(1, 2, 3))
+    result = cv.letterbox(img, (300, 300), color=(1, 2, 3))
+    assert isinstance(result, cv.Letterbox)
+    assert result.image is result[0] and result.scale == result[1] and result.offset == result[2]
+    dst, scale, (left, top) = result
     assert dst.shape == (300, 300, 3)
     assert scale == pytest.approx(1.5)
     assert (left, top) == (0, 75)

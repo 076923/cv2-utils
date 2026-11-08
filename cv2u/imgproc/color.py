@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from .._validate import check_color, check_image_not_empty
+from .._validate import check_channels, check_color, check_image_not_empty
 
 __all__ = [
     "bgrToHex",
@@ -20,9 +20,7 @@ __all__ = [
 
 
 def _channels(src: np.ndarray) -> int:
-    channels = 1 if src.ndim == 2 else int(src.shape[2]) if src.ndim == 3 else 0
-    if channels not in (1, 3, 4):
-        raise ValueError(f"src must have 1, 3 or 4 channels, got shape {src.shape}")
+    channels = check_channels("src", src)
     check_image_not_empty("src", src)
     return channels
 
@@ -38,7 +36,7 @@ def toGray(src: np.ndarray) -> np.ndarray:
     any image needs a channel check first. Grayscale input is returned as a copy.
 
     Raises:
-        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+        ValueError: If ``src`` does not have 1, 3 or 4 channels, or is empty.
     """
     channels = _channels(src)
     if channels == 1:
@@ -51,7 +49,7 @@ def toBGR(src: np.ndarray) -> np.ndarray:
     """Convert a grayscale, BGR or BGRA image to 3-channel BGR (the alpha channel is dropped).
 
     Raises:
-        ValueError: If ``src`` does not have 1, 3 or 4 channels.
+        ValueError: If ``src`` does not have 1, 3 or 4 channels, or is empty.
     """
     channels = _channels(src)
     if channels == 3:
@@ -72,7 +70,8 @@ def toBGRA(src: np.ndarray, alpha: float | None = None) -> np.ndarray:
             65535 for 16-bit, 1.0 for float). For BGRA input, the existing alpha is kept unless this is given.
 
     Raises:
-        ValueError: If ``src`` does not have 1, 3 or 4 channels, or ``alpha`` is not a finite number.
+        ValueError: If ``src`` does not have 1, 3 or 4 channels or is empty, or ``alpha`` is not a finite number in
+            the range of the image dtype.
     """
     if alpha is not None:
         check_color("alpha", [alpha], src.dtype)
@@ -119,7 +118,7 @@ def bgrToHex(color: Sequence[float]) -> str:
     return f"#{r:02x}{g:02x}{b:02x}" + (f"{values[3]:02x}" if len(values) == 4 else "")
 
 
-def flattenAlpha(src: np.ndarray, background: float | Sequence[float] | np.ndarray = (255, 255, 255)) -> np.ndarray:
+def flattenAlpha(src: np.ndarray, fill: float | Sequence[float] | np.ndarray = (255, 255, 255)) -> np.ndarray:
     """Composite a transparent (BGRA) image onto a background and return 3-channel BGR.
 
     ``cv.cvtColor(img, cv.COLOR_BGRA2BGR)`` just drops the alpha channel, so transparent areas show whatever color
@@ -127,24 +126,27 @@ def flattenAlpha(src: np.ndarray, background: float | Sequence[float] | np.ndarr
 
     Args:
         src: Image to flatten. Images without an alpha channel are converted with ``toBGR``.
-        background: Background color (white by default), or a background image of the same height and width.
+        fill: Background color (white by default; a scalar or BGR), or a background image of the same height and
+            width.
 
     Returns:
         A BGR image with the dtype of ``src``.
 
     Raises:
-        ValueError: If ``src`` does not have 1, 3 or 4 channels, or a background image has a different size.
+        ValueError: If ``src`` does not have 1, 3 or 4 channels or is empty, ``fill`` is not finite, or a
+            background image has a different size.
     """
     if _channels(src) != 4:
         return toBGR(src)
     peak = float(np.iinfo(src.dtype).max) if np.issubdtype(src.dtype, np.integer) else 1.0
     alpha = src[..., 3:4].astype(np.float32) / peak
-    if isinstance(background, np.ndarray) and background.ndim >= 2:
-        if background.shape[:2] != src.shape[:2]:
-            raise ValueError(f"background image must be {src.shape[1]}x{src.shape[0]}, got shape {background.shape}")
-        bg = toBGR(background).astype(np.float32)
+    if isinstance(fill, np.ndarray) and fill.ndim >= 2:
+        if fill.shape[:2] != src.shape[:2]:
+            raise ValueError(f"fill image must be {src.shape[1]}x{src.shape[0]}, got shape {fill.shape}")
+        bg = toBGR(fill).astype(np.float32)
     else:
-        values = np.atleast_1d(np.asarray(background, dtype=np.float32)).ravel()
+        values = np.atleast_1d(np.asarray(fill, dtype=np.float32)).ravel()
+        check_color("fill", values.tolist())
         bg = np.resize(values, 3) if values.size < 3 else values[:3]
     out = src[..., :3].astype(np.float32) * alpha + bg * (1 - alpha)
     if np.issubdtype(src.dtype, np.integer):

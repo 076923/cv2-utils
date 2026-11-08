@@ -9,54 +9,63 @@ def img():
     return np.arange(100, dtype=np.uint8).reshape(10, 10)
 
 
-# --- cropEx ------------------------------------------------------------------------
+# --- cropRect ------------------------------------------------------------------------
 
 
-def test_cropEx_inside_matches_slicing(img):
-    np.testing.assert_array_equal(cv.cropEx(img, (2, 3, 4, 5)), img[3:8, 2:6])
+def test_cropRect_inside_matches_slicing(img):
+    np.testing.assert_array_equal(cv.cropRect(img, (2, 3, 4, 5)), img[3:8, 2:6])
 
 
-def test_cropEx_returns_a_copy(img):
-    crop = cv.cropEx(img, (0, 0, 2, 2))
+def test_cropRect_returns_a_copy(img):
+    crop = cv.cropRect(img, (0, 0, 2, 2))
     crop[:] = 0
     assert img[0, 1] == 1
 
 
-def test_cropEx_negative_coordinates_are_clipped(img):
+def test_cropRect_negative_coordinates_are_clipped(img):
     # Plain slicing img[-2:3, -2:3] would return an empty array here.
-    np.testing.assert_array_equal(cv.cropEx(img, (-2, -2, 5, 5)), img[0:3, 0:3])
+    np.testing.assert_array_equal(cv.cropRect(img, (-2, -2, 5, 5)), img[0:3, 0:3])
 
 
-def test_cropEx_fill_keeps_the_box_size(img):
-    crop = cv.cropEx(img, (-2, 8, 4, 4), fill=255)
+def test_cropRect_fill_keeps_the_box_size(img):
+    crop = cv.cropRect(img, (-2, 8, 4, 4), fill=255)
     assert crop.shape == (4, 4)
     np.testing.assert_array_equal(crop[:2, 2:], img[8:10, 0:2])
     assert (crop[:, :2] == 255).all()
     assert (crop[2:, :] == 255).all()
 
 
-def test_cropEx_fill_color_image():
+def test_cropRect_fill_color_image():
     bgr = np.zeros((5, 5, 3), np.uint8)
-    crop = cv.cropEx(bgr, (3, 3, 4, 4), fill=(1, 2, 3))
+    crop = cv.cropRect(bgr, (3, 3, 4, 4), fill=(1, 2, 3))
     assert crop.shape == (4, 4, 3)
     assert tuple(crop[3, 3]) == (1, 2, 3)
     assert tuple(crop[0, 0]) == (0, 0, 0)
 
 
-def test_cropEx_margin(img):
-    np.testing.assert_array_equal(cv.cropEx(img, (4, 4, 2, 2), margin=1), img[3:7, 3:7])
+def test_cropRect_margin(img):
+    np.testing.assert_array_equal(cv.cropRect(img, (4, 4, 2, 2), margin=1), img[3:7, 3:7])
 
 
-def test_cropEx_outside(img):
-    assert cv.cropEx(img, (20, 20, 3, 3)).size == 0
-    assert (cv.cropEx(img, (20, 20, 3, 3), fill=7) == 7).all()
+def test_cropRect_outside_raises(img):
+    # Before: an empty array (or a box full of fill), which failed later with an unrelated error.
+    with pytest.raises(ValueError, match="outside"):
+        cv.cropRect(img, (20, 20, 3, 3))
+    with pytest.raises(ValueError, match="outside"):
+        cv.cropRect(img, (20, 20, 3, 3), fill=7)
+    with pytest.raises(ValueError, match="outside"):
+        cv.cropRect(img, (-5, 0, 5, 5))  # touches the border without covering a pixel
 
 
-def test_cropEx_validation(img):
-    with pytest.raises(ValueError):
-        cv.cropEx(img, (0, 0, 0, 5))
-    with pytest.raises(ValueError):
-        cv.cropEx(img, (0, 0, 4, 4), margin=-2)
+def test_cropRect_validation(img):
+    with pytest.raises(ValueError, match="rect"):
+        cv.cropRect(img, (0, 0, 0, 5))
+    with pytest.raises(ValueError, match="rect"):
+        cv.cropRect(img, (0, 0, 4, 4), margin=-2)
+    with pytest.raises(ValueError, match="rect"):
+        cv.cropRect(img, (0, 0, float("nan"), 4))
+    with pytest.raises(ValueError, match="empty"):
+        cv.cropRect(np.zeros((0, 0), np.uint8), (0, 0, 4, 4))
 
 
 # --- inRangeEx ---------------------------------------------------------------------

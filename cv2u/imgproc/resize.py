@@ -1,11 +1,24 @@
 from collections.abc import Sequence
+from typing import NamedTuple
 
 import cv2
 import numpy as np
 
 from .._validate import check_color, check_image_not_empty
 
-__all__ = ["letterbox", "resizeEx"]
+__all__ = ["Letterbox", "letterbox", "resizeEx"]
+
+
+class Letterbox(NamedTuple):
+    """The result of :func:`letterbox`: the padded image and how to map coordinates back."""
+
+    image: np.ndarray
+    """The resized and padded image, of the requested size."""
+    scale: float
+    """Factor the source was resized by."""
+    offset: tuple[int, int]
+    """``(left, top)``: where the resized source starts in ``image``. A point ``(x, y)`` of the source is at
+    ``(x * scale + left, y * scale + top)``; :func:`scaleBoxes` with ``inverse=True`` maps boxes back."""
 
 
 def _default_interpolation(scale: float) -> int:
@@ -30,8 +43,11 @@ def resizeEx(
         interpolation: ``cv.INTER_*`` flag. By default ``cv.INTER_AREA`` when shrinking and ``cv.INTER_LINEAR``
             when enlarging, as recommended by OpenCV.
 
+    Returns:
+        The resized image.
+
     Raises:
-        ValueError: If neither ``width`` nor ``height`` is given, or a size is not positive.
+        ValueError: If ``src`` is empty, neither ``width`` nor ``height`` is given, or a size is not positive.
     """
     if width is None and height is None:
         raise ValueError("give width, height or both")
@@ -62,7 +78,7 @@ def letterbox(
     size: tuple[int, int],
     color: float | Sequence[float] = 0,
     interpolation: int | None = None,
-) -> tuple[np.ndarray, float, tuple[int, int]]:
+) -> Letterbox:
     """Fit an image into ``size`` keeping its aspect ratio, and pad the rest with ``color``.
 
     Common as preprocessing for neural networks with a fixed input size.
@@ -74,8 +90,8 @@ def letterbox(
         interpolation: ``cv.INTER_*`` flag; chosen like in :func:`resizeEx` by default.
 
     Returns:
-        ``(dst, scale, (left, top))``. A point ``(x, y)`` in ``src`` is at ``(x * scale + left, y * scale + top)``
-        in ``dst``.
+        :class:`Letterbox` ``(image, scale, (left, top))``. A point ``(x, y)`` in ``src`` is at
+        ``(x * scale + left, y * scale + top)`` in ``image``.
 
     Raises:
         ValueError: If ``size`` is not positive, ``src`` is empty, or ``color`` is not finite.
@@ -95,4 +111,4 @@ def letterbox(
     right, bottom = out_w - new_w - left, out_h - new_h - top
     value = [float(color)] * 4 if isinstance(color, (int, float)) else [float(c) for c in color]
     dst: np.ndarray = cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=value)
-    return dst, scale, (left, top)
+    return Letterbox(dst, scale, (left, top))

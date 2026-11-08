@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
+from .._validate import as_color, check_channels, check_finite, check_image_not_empty, is_single_color
 from .puttext import _load_font
 
 __all__ = [
@@ -40,8 +41,10 @@ def _luminance(color: Color) -> float:
     return 0.114 * b + 0.587 * g + 0.299 * r
 
 
-def _channels(img: np.ndarray) -> int:
-    return 1 if img.ndim == 2 else int(img.shape[2])
+def _check_canvas(img: np.ndarray) -> int:
+    """Channel count of an image to draw on; empty images and unsupported channel counts are rejected."""
+    check_image_not_empty("img", img)
+    return check_channels("img", img)
 
 
 def _pil_fill(color: Color, channels: int) -> int | tuple[int, ...]:
@@ -84,11 +87,13 @@ def drawLabel(
         ``img``, with the box and label drawn on it.
 
     Raises:
-        ValueError: If ``img`` is not 8-bit.
+        ValueError: If ``img`` is not 8-bit, is empty or has an unsupported channel count, ``fontScale`` is not
+            positive, or ``color`` is not a scalar or BGR color.
     """
     if img.dtype != np.uint8:
         raise ValueError(f"img must be an 8-bit (uint8) image, got dtype {img.dtype}")
-    channels = _channels(img)
+    channels = _check_canvas(img)
+    check_finite("fontScale", fontScale, positive=True)
     if channels == 1 and not isinstance(color, (int, float)):
         # OpenCV would use only color[0] on a grayscale image, e.g. (0, 200, 255) would draw black.
         color = _luminance(color)
@@ -145,16 +150,19 @@ def overlayMask(src: np.ndarray, mask: np.ndarray, color: Color = (0, 0, 255), a
         A new image with the same shape as ``src``.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit, the mask shape does not match, or ``alpha`` is outside ``[0, 1]``.
+        ValueError: If ``src`` is not 8-bit, is empty or has an unsupported channel count, the mask shape does not
+            match, or ``alpha`` is outside ``[0, 1]``.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
+    check_image_not_empty("src", src)
+    channels = check_channels("src", src)
     if mask.ndim != 2 or mask.shape != src.shape[:2]:
         raise ValueError(f"mask must have the shape {src.shape[:2]}, got {mask.shape}")
+    check_finite("alpha", alpha)
     if not 0.0 <= alpha <= 1.0:
         raise ValueError(f"alpha must be between 0 and 1, got {alpha}")
 
-    channels = _channels(src)
     # Blend the whole image with a flat color layer (C++), then copy the masked pixels over: much faster than
     # gathering and scattering the selected pixels with NumPy fancy indexing on large masks.
     layer = np.empty_like(src)
@@ -196,8 +204,9 @@ def drawDashedLine(
         ``img``.
 
     Raises:
-        ValueError: If ``dashLength`` or ``gapLength`` is not positive.
+        ValueError: If ``img`` is empty, or ``dashLength`` or ``gapLength`` is not positive.
     """
+    _check_canvas(img)
     gap = dashLength if gapLength is None else gapLength
     if dashLength < 1 or gap < 1:
         raise ValueError(f"dashLength and gapLength must be positive, got {dashLength} and {gap}")
@@ -225,9 +234,21 @@ def drawDashedRectangle(
 ) -> np.ndarray:
     """Draw a dashed rectangle ``(x, y, width, height)``, in place like ``cv.rectangle``.
 
+    Args:
+        img: Image to draw on.
+        rect: The box as ``(x, y, width, height)``.
+        color: Line color.
+        thickness: Line thickness.
+        dashLength: Length of each dash in pixels.
+        gapLength: Length of each gap; by default equal to ``dashLength``.
+
     Returns:
         ``img``.
+
+    Raises:
+        ValueError: If ``img`` is empty, or ``dashLength`` or ``gapLength`` is not positive.
     """
+    _check_canvas(img)
     x, y, w, h = (int(v) for v in rect)
     x1, y1 = x + w - 1, y + h - 1
     for p, q in (((x, y), (x1, y)), ((x1, y), (x1, y1)), ((x1, y1), (x, y1)), ((x, y1), (x, y))):
@@ -235,7 +256,7 @@ def drawDashedRectangle(
     return img
 
 
-def drawHistogram(src: np.ndarray, size: tuple[int, int] = (512, 200), log: bool = False) -> np.ndarray:
+def drawHistogram(src: np.ndarray, size: tuple[int, int] = (512, 200), *, log: bool = False) -> np.ndarray:
     """Plot the histogram of an 8-bit image (one curve per channel, in its own color) as a new image.
 
     ``cv.calcHist`` only returns the numbers.
@@ -247,14 +268,19 @@ def drawHistogram(src: np.ndarray, size: tuple[int, int] = (512, 200), log: bool
             On a linear scale, the few tallest spikes are clipped at the top.
 
     Returns:
-        A BGR image with a dark background.
+        An 8-bit BGR image with a dark background.
 
     Raises:
-        ValueError: If ``src`` is not 8-bit.
+        ValueError: If ``src`` is not 8-bit, is empty or has an unsupported channel count, or ``size`` is not
+            positive.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
+    check_image_not_empty("src", src)
+    check_channels("src", src)
     width, height = size
+    if width < 1 or height < 1:
+        raise ValueError(f"size must be at least 1x1, got {size}")
     plot = np.full((height, width, 3), 24, np.uint8)
     channels = 1 if src.ndim == 2 else min(src.shape[2], 3)
     colors = [(230, 230, 230)] if channels == 1 else [(255, 120, 40), (60, 200, 60), (40, 60, 255)]
@@ -278,8 +304,8 @@ def drawRoundedRectangle(
     rect: tuple[int, int, int, int],
     color: Color,
     thickness: int = 1,
-    lineType: int = cv2.LINE_8,
     radius: int = 8,
+    lineType: int = cv2.LINE_8,
 ) -> np.ndarray:
     """Draw a rectangle ``(x, y, width, height)`` with rounded corners, in place like ``cv.rectangle``.
 
@@ -288,15 +314,16 @@ def drawRoundedRectangle(
         rect: The box, as for ``drawDashedRectangle``.
         color: Line or fill color.
         thickness: Line thickness; ``cv.FILLED`` (negative) fills the shape.
-        lineType: As for ``cv.rectangle`` (``cv.LINE_AA`` for smooth corners).
         radius: Corner radius in pixels, reduced to fit small boxes.
+        lineType: As for ``cv.rectangle`` (``cv.LINE_AA`` for smooth corners).
 
     Returns:
         ``img``.
 
     Raises:
-        ValueError: If the box is empty or ``radius`` is negative.
+        ValueError: If ``img`` is empty, the box has no area, or ``radius`` is negative.
     """
+    _check_canvas(img)
     x, y, w, h = (int(v) for v in rect)
     if w < 1 or h < 1:
         raise ValueError(f"rect must have a positive size, got {w}x{h}")
@@ -352,10 +379,11 @@ def drawBoxes(
         ``img``.
 
     Raises:
-        ValueError: If ``labels`` or ``colors`` has a different length than ``boxes``.
+        ValueError: If ``img`` is empty, or ``labels`` or ``colors`` has a different length than ``boxes``.
     """
     from .color import distinctColors
 
+    _check_canvas(img)
     array = np.asarray(boxes, dtype=np.float64).reshape(-1, 4) if np.size(boxes) else np.zeros((0, 4))
     count = len(array)
     if labels is not None and len(labels) != count:
@@ -363,12 +391,10 @@ def drawBoxes(
     palette: list[Color]
     if colors is None:
         palette = list(distinctColors(max(count, 1)))
-    elif isinstance(colors, (int, float)) or (
-        len(colors) in (3, 4) and all(isinstance(c, (int, float)) for c in colors)
-    ):
-        palette = [colors] * max(count, 1)  # type: ignore[list-item]
+    elif is_single_color(colors):
+        palette = [as_color(colors)] * max(count, 1)
     else:
-        palette = list(colors)
+        palette = [as_color(c) for c in colors]  # type: ignore[union-attr]
         if len(palette) != count:
             raise ValueError(f"colors must have one entry per box, got {len(palette)} for {count} boxes")
     for i, box in enumerate(array):
@@ -390,7 +416,7 @@ def drawPoints(
     radius: int = 3,
     thickness: int = cv2.FILLED,
     labels: bool | Sequence[str] = False,
-    fontScale: float = 0.4,
+    fontScale: float = 0.5,
 ) -> np.ndarray:
     """Draw points (keypoints, corners, landmarks) as circles, optionally numbered, in place.
 
@@ -407,8 +433,10 @@ def drawPoints(
         ``img``.
 
     Raises:
-        ValueError: If the points are not 2-D, ``radius`` is negative, or ``labels`` has a different length.
+        ValueError: If ``img`` is empty, the points are not 2-D, ``radius`` is negative, or ``labels`` has a
+            different length.
     """
+    _check_canvas(img)
     array = np.asarray(points, dtype=np.float64).reshape(-1, 2) if np.size(points) else np.zeros((0, 2))
     if not isinstance(labels, bool) and len(labels) != len(array):
         raise ValueError(f"labels must have one entry per point, got {len(labels)} for {len(array)} points")
@@ -446,8 +474,9 @@ def drawGrid(
         ``img``.
 
     Raises:
-        ValueError: If ``step`` is not positive.
+        ValueError: If ``img`` is empty or ``step`` is not positive.
     """
+    _check_canvas(img)
     step_x, step_y = (step, step) if isinstance(step, int) else step
     if step_x < 1 or step_y < 1:
         raise ValueError(f"step must be positive, got {step}")

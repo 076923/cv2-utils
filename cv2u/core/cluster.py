@@ -1,24 +1,38 @@
 """Clustering of pixel colors and of points.
 
 ``kmeansColors``, ``dominantColors`` and ``colorQuantize`` use OpenCV's ``cv.kmeans`` and need nothing else.
-``DBSCAN``, ``meanShiftColors`` and ``clusterPoints`` need the ``cluster`` extra (scikit-learn).
+``dbscanColors``, ``meanShiftColors`` and ``clusterPoints`` need the ``cluster`` extra (scikit-learn).
 """
 
-from typing import Any
+from typing import Any, NamedTuple
 
 import cv2
 import numpy as np
 from numpy.typing import ArrayLike
 
+from .._validate import check_finite, check_image_not_empty
+
 __all__ = [
-    "DBSCAN",
+    "Clusters",
     "clusterPoints",
     "colorQuantize",
+    "dbscanColors",
     "dominantColors",
-    "drawDBSCAN",
+    "drawClusters",
     "kmeansColors",
     "meanShiftColors",
 ]
+
+
+class Clusters(NamedTuple):
+    """The result of :func:`kmeansColors`, :func:`meanShiftColors`, :func:`peakColors` and :func:`dbscanColors`."""
+
+    maps: np.ndarray
+    """Label image of shape ``src.shape[:2]`` (``int32``): the cluster of every pixel, ``0 .. len(centers) - 1``
+    (``-1`` for the noise pixels of :func:`dbscanColors`)."""
+    centers: np.ndarray
+    """The color of every cluster as ``uint8``, shape ``(k, channels)`` (BGR, or gray for grayscale input)."""
+
 
 _INSTALL_HINT = '{name} requires scikit-learn. Install it with: pip install "python-opencv-utils[cluster]"'
 
@@ -40,41 +54,65 @@ def _check_bgr(src: np.ndarray, name: str = "src") -> None:
 def _check_gray_or_bgr(src: np.ndarray) -> int:
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
-    channels = 1 if src.ndim == 2 else src.shape[2]
+    channels = 1 if src.ndim == 2 else src.shape[2] if src.ndim == 3 else 0
     if channels not in (1, 3):
         raise ValueError(f"src must be a grayscale or BGR image, got shape {src.shape}")
+    check_image_not_empty("src", src)
     return int(channels)
+
+
+def _mean_colors(src: np.ndarray, maps: np.ndarray, count: int) -> np.ndarray:
+    """Truncated mean color of every label ``0 .. count - 1`` (like ``int(cv.mean())``); negative labels are skipped."""
+    labels = maps.ravel().astype(np.intp)
+    pixels = src.reshape(len(labels), -1).astype(np.float64)
+    valid = labels >= 0
+    labels, pixels = labels[valid], pixels[valid]
+    sizes = np.bincount(labels, minlength=count)
+    sums = np.stack([np.bincount(labels, weights=pixels[:, c], minlength=count) for c in range(pixels.shape[1])], 1)
+    return np.floor(sums / np.maximum(sizes, 1)[:, None]).astype(np.uint8)
 
 
 # --- DBSCAN / clusterPoints (scikit-learn) ---------------------------------------------
 
 
-def DBSCAN(src: np.ndarray, eps: float, minSamples: int) -> tuple[np.ndarray, np.ndarray]:
-    """Cluster the pixels of a BGR image in the Lab color space with DBSCAN.
+def dbscanColors(src: np.ndarray, eps: float, minSamples: int = 4) -> Clusters:
+    """Cluster the pixel colors of a BGR image with DBSCAN (in the Lab color space), noise included.
 
-    Requires the ``cluster`` extra: ``pip install "python-opencv-utils[cluster]"``.
+    Requires the ``cluster`` extra: ``pip install "python-opencv-utils[cluster]"``. Unlike :func:`kmeansColors`,
+    the number of colors is found by DBSCAN itself, and pixels that belong to no dense color group are reported
+    as noise instead of being forced into a cluster.
 
     Every pixel is a sample, so time and memory grow quickly with the image size. Downscale large images first
     (e.g. ``cv.resizeEx(src, width=200)``) and upscale ``maps`` with ``cv.INTER_NEAREST`` if needed.
 
     Args:
-        src: 3-channel BGR image.
+        src: 8-bit BGR image.
         eps: Maximum Lab color distance between two pixels in the same neighborhood.
         minSamples: Minimum number of pixels in a neighborhood for a core point.
 
     Returns:
-        ``(maps, labels)``: ``maps`` is the label image with shape ``src.shape[:2]``,
-        ``labels`` is the flattened label array. Noise is labeled ``0``, clusters ``1, 2, ...``.
+        :class:`Clusters` ``(maps, centers)`` as for :func:`kmeansColors`: ``maps`` holds the labels
+        ``0 .. len(centers) - 1`` and ``-1`` for noise pixels; ``centers`` holds the mean BGR color of every
+        cluster. Paint the result with :func:`drawClusters`.
 
     Raises:
         ImportError: If scikit-learn is not installed.
-        ValueError: If ``src`` is not a 3-channel image.
+        ValueError: If ``src`` is not an 8-bit BGR image or is empty, ``eps`` is not positive, or ``minSamples``
+            is below 1.
     """
+    if src.dtype != np.uint8:
+        raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
     _check_bgr(src)
-    cluster = _sklearn_cluster("DBSCAN")
+    check_image_not_empty("src", src)
+    check_finite("eps", eps, positive=True)
+    if minSamples < 1:
+        raise ValueError(f"minSamples must be at least 1, got {minSamples}")
+    cluster = _sklearn_cluster("dbscanColors")
     lab = cv2.cvtColor(src, cv2.COLOR_BGR2LAB).reshape(-1, 3)
-    labels: np.ndarray = cluster.DBSCAN(eps=eps, min_samples=minSamples).fit(lab).labels_ + 1
-    return labels.reshape(src.shape[:2]), labels
+    labels: np.ndarray = cluster.DBSCAN(eps=eps, min_samples=minSamples).fit(lab).labels_
+    maps = labels.astype(np.int32).reshape(src.shape[:2])
+    count = int(np.max(maps)) + 1
+    return Clusters(maps, _mean_colors(src, maps, count).reshape(count, 3))
 
 
 def clusterPoints(points: ArrayLike, eps: float, minSamples: int = 2) -> np.ndarray:
@@ -88,44 +126,56 @@ def clusterPoints(points: ArrayLike, eps: float, minSamples: int = 2) -> np.ndar
         minSamples: Minimum number of points that forms a group; ``1`` puts every point in some group.
 
     Returns:
-        Labels of shape ``(N,)``: ``0`` for noise (points in no group), ``1, 2, ...`` for the groups,
-        as in :func:`DBSCAN`.
+        Labels of shape ``(N,)`` (``int32``): ``0, 1, ...`` for the groups and ``-1`` for noise (points in no
+        group), as in :func:`dbscanColors` and scikit-learn.
 
     Raises:
         ImportError: If scikit-learn is not installed.
-        ValueError: If ``points`` is empty.
+        ValueError: If ``points`` is empty or not finite, ``eps`` is not positive, or ``minSamples`` is below 1.
     """
     pts = np.asarray(points, dtype=np.float64)
     if pts.ndim == 3 and pts.shape[1] == 1:
         pts = pts.reshape(-1, pts.shape[2])
     if pts.ndim != 2 or len(pts) == 0:
         raise ValueError(f"points must have the shape (N, d) with N > 0, got {pts.shape}")
+    if not np.all(np.isfinite(pts)):
+        raise ValueError("points must be finite")
+    check_finite("eps", eps, positive=True)
+    if minSamples < 1:
+        raise ValueError(f"minSamples must be at least 1, got {minSamples}")
     cluster = _sklearn_cluster("clusterPoints")
-    labels: np.ndarray = cluster.DBSCAN(eps=eps, min_samples=minSamples).fit(pts).labels_ + 1
-    return labels
+    labels: np.ndarray = cluster.DBSCAN(eps=eps, min_samples=minSamples).fit(pts).labels_
+    return labels.astype(np.int32)
 
 
-def drawDBSCAN(src: np.ndarray, maps: np.ndarray, labels: np.ndarray) -> np.ndarray:
-    """Paint each cluster with its mean color.
+def drawClusters(src: np.ndarray, maps: np.ndarray) -> np.ndarray:
+    """Paint every cluster of ``maps`` with its mean color in ``src``, as a new image.
 
-    Works with the output of :func:`DBSCAN`, and of :func:`kmeansColors` and :func:`meanShiftColors`
-    (pass ``maps.ravel()`` as ``labels`` for those).
+    For looking at the result of :func:`dbscanColors`, :func:`meanShiftColors`, :func:`peakColors` or
+    :func:`kmeansColors`. Noise pixels (label ``-1``) keep their original color. To posterize an image with
+    k-means in one call, use :func:`colorQuantize` instead.
+
+    Args:
+        src: 8-bit grayscale or BGR image, the one that was clustered.
+        maps: Label image of shape ``src.shape[:2]``, as returned in :class:`Clusters`.
+
+    Returns:
+        A new image with the shape and dtype of ``src``; ``src`` is not modified.
 
     Raises:
-        ValueError: If ``src`` is not a 3-channel image or the shapes do not match.
+        ValueError: If ``src`` is not an 8-bit grayscale or BGR image or is empty, or ``maps`` has another shape.
     """
-    _check_bgr(src)
-    if maps.shape != src.shape[:2] or labels.size != maps.size:
-        raise ValueError(f"maps/labels do not match src: src {src.shape}, maps {maps.shape}, labels {labels.shape}")
-
-    flat_labels = labels.ravel().astype(np.intp)
-    count = int(np.max(flat_labels)) + 1
-    pixels = src.reshape(-1, 3).astype(np.float64)
-    sizes = np.bincount(flat_labels, minlength=count)
-    sums = np.stack([np.bincount(flat_labels, weights=pixels[:, c], minlength=count) for c in range(3)], axis=1)
-    colors = np.floor(sums / np.maximum(sizes, 1)[:, None]).astype(np.uint8)  # truncated mean, like int(cv.mean())
-    dst: np.ndarray = colors[flat_labels].reshape(src.shape)
-    return dst
+    _check_gray_or_bgr(src)
+    if maps.shape != src.shape[:2]:
+        raise ValueError(f"maps must have the shape {src.shape[:2]}, got {maps.shape}")
+    labels = maps.ravel().astype(np.intp)
+    count = int(np.max(labels)) + 1
+    out = src.reshape(len(labels), -1).copy()
+    if count > 0:
+        colors = _mean_colors(src, maps, count)
+        painted = labels >= 0
+        out[painted] = colors[labels[painted]]
+    return out.reshape(src.shape)
 
 
 # --- k-means (OpenCV only) -----------------------------------------------------------------
@@ -157,7 +207,7 @@ def kmeansColors(
     sampleSize: int = 20000,
     seed: int = 0,
     maxIter: int = 30,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Clusters:
     """Cluster the pixel colors of an image into ``k`` groups with k-means (``cv.kmeans``).
 
     Takes care of the ``cv.kmeans`` boilerplate (reshaping, float conversion, criteria), clusters in the Lab color
@@ -173,11 +223,12 @@ def kmeansColors(
         maxIter: Maximum number of k-means iterations.
 
     Returns:
-        ``(maps, centers)``: ``maps`` has shape ``src.shape[:2]`` with labels ``0 .. k-1``; ``centers`` has shape
-        ``(k, channels)`` and holds the colors (BGR, or gray) as ``uint8``.
+        :class:`Clusters` ``(maps, centers)``: ``maps`` has shape ``src.shape[:2]`` with labels ``0 .. k-1``;
+        ``centers`` has shape ``(k, channels)`` and holds the colors (BGR, or gray) as ``uint8``.
 
     Raises:
-        ValueError: If ``src`` is not an 8-bit grayscale or BGR image, or ``k`` is not between 1 and the pixel count.
+        ValueError: If ``src`` is not an 8-bit grayscale or BGR image or is empty, ``k`` is not between 1 and the
+            pixel count, ``sampleSize`` is below ``k``, or ``maxIter`` is below 1.
     """
     channels = _check_gray_or_bgr(src)
     pixel_count = src.shape[0] * src.shape[1]
@@ -185,6 +236,8 @@ def kmeansColors(
         raise ValueError(f"k must be between 1 and the number of pixels ({pixel_count}), got {k}")
     if sampleSize < k:
         raise ValueError(f"sampleSize must be at least k ({k}), got {sampleSize}")
+    if maxIter < 1:
+        raise ValueError(f"maxIter must be at least 1, got {maxIter}")
 
     space = src if channels == 1 else cv2.cvtColor(src, cv2.COLOR_BGR2LAB)
     data = space.reshape(-1, channels).astype(np.float32)
@@ -200,7 +253,7 @@ def kmeansColors(
     colors = np.clip(np.rint(centers), 0, 255).astype(np.uint8)
     if channels == 3:
         colors = np.asarray(cv2.cvtColor(colors.reshape(-1, 1, 3), cv2.COLOR_LAB2BGR), dtype=np.uint8).reshape(-1, 3)
-    return maps, colors
+    return Clusters(maps, colors)
 
 
 def dominantColors(
@@ -245,7 +298,7 @@ def meanShiftColors(
     quantile: float = 0.2,
     sampleSize: int = 2000,
     seed: int = 0,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Clusters:
     """Cluster the pixel colors with mean shift, which finds the number of colors by itself.
 
     The counterpart of :func:`kmeansColors` when you do not know ``k``: same result format, clustering in the Lab
@@ -261,15 +314,20 @@ def meanShiftColors(
         seed: Seed for the sampling.
 
     Returns:
-        ``(maps, centers)`` as for :func:`kmeansColors`; ``len(centers)`` is the number of colors found.
+        :class:`Clusters` ``(maps, centers)`` as for :func:`kmeansColors`; ``len(centers)`` is the number of
+        colors found.
 
     Raises:
         ImportError: If scikit-learn is not installed.
-        ValueError: If ``src`` is not an 8-bit BGR image, or ``quantile`` is outside ``(0, 1]``.
+        ValueError: If ``src`` is not an 8-bit BGR image or is empty, ``bandwidth`` is not positive, or
+            ``quantile`` is outside ``(0, 1]``.
     """
     if src.dtype != np.uint8:
         raise ValueError(f"src must be an 8-bit (uint8) image, got dtype {src.dtype}")
     _check_bgr(src)
+    check_image_not_empty("src", src)
+    if bandwidth is not None:
+        check_finite("bandwidth", bandwidth, positive=True)
     if not 0.0 < quantile <= 1.0:
         raise ValueError(f"quantile must be in (0, 1], got {quantile}")
     cluster = _sklearn_cluster("meanShiftColors")
@@ -287,4 +345,4 @@ def meanShiftColors(
     maps = _nearest(data, centers).astype(np.int32).reshape(src.shape[:2])
     lab = np.clip(np.rint(centers), 0, 255).astype(np.uint8).reshape(-1, 1, 3)
     colors = np.asarray(cv2.cvtColor(lab, cv2.COLOR_LAB2BGR), dtype=np.uint8).reshape(-1, 3)
-    return maps, colors
+    return Clusters(maps, colors)

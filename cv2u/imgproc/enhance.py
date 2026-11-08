@@ -8,6 +8,7 @@ __all__ = ["equalizeHistEx", "pixelate", "unsharpMask"]
 
 def equalizeHistEx(
     src: np.ndarray,
+    *,
     clahe: bool = False,
     clipLimit: float = 2.0,
     tileGridSize: tuple[int, int] = (8, 8),
@@ -96,7 +97,7 @@ def pixelate(src: np.ndarray, blockSize: int = 16, rect: tuple[int, int, int, in
         A new image; the area outside ``rect`` is unchanged.
 
     Raises:
-        ValueError: If ``blockSize`` is not positive.
+        ValueError: If ``src`` is empty or ``blockSize`` is not positive.
     """
     if blockSize < 1:
         raise ValueError(f"blockSize must be positive, got {blockSize}")

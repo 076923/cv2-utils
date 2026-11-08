@@ -28,6 +28,7 @@ _SHAPES = {"ellipse": cv2.MORPH_ELLIPSE, "rect": cv2.MORPH_RECT, "cross": cv2.MO
 def binarize(
     src: np.ndarray,
     method: Method | float = "otsu",
+    *,
     invert: bool = False,
     blockSize: int = 31,
     C: float = 10,
@@ -53,7 +54,8 @@ def binarize(
         ``uint8`` mask with values 0 and 255, of shape ``src.shape[:2]``.
 
     Raises:
-        ValueError: If ``src`` is empty, ``method`` is unknown, or ``blockSize``/``blur`` is not odd.
+        ValueError: If ``src`` is empty or has an unsupported channel count, ``method`` is unknown or a non-finite
+            number, a named method is used on a non-8-bit image, or ``blockSize``/``blur`` is not odd.
     """
     check_image_not_empty("src", src)
     if blur < 0 or (blur and blur % 2 == 0):
@@ -103,7 +105,8 @@ def morphology(
         iterations: How many times to apply it.
 
     Raises:
-        ValueError: If ``op`` or ``shape`` is unknown, ``ksize`` is not positive, or ``src`` is empty.
+        ValueError: If ``src`` is empty, ``op`` or ``shape`` is unknown, ``ksize`` is not positive, or
+            ``iterations`` is below 1.
     """
     check_image_not_empty("src", src)
     if op not in _OPERATIONS:

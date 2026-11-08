@@ -214,12 +214,12 @@ def test_cropContour_blanks_the_outside(contours):
     assert crop.shape == (51, 51, 3)
     assert tuple(crop[0, 0]) == (0, 0, 0)  # the corner of the box lies outside the circle
     assert tuple(crop[25, 25]) == (200, 200, 200)
-    assert tuple(cv.cropContour(img, contours[1], background=(1, 2, 3))[0, 0]) == (1, 2, 3)
+    assert tuple(cv.cropContour(img, contours[1], fill=(1, 2, 3))[0, 0]) == (1, 2, 3)
 
 
-def test_cropContour_margin_is_clipped_and_background_none_keeps_pixels(contours):
+def test_cropContour_margin_is_clipped_and_fill_none_keeps_pixels(contours):
     img = np.full((120, 160), 200, np.uint8)
-    crop = cv.cropContour(img, contours[1], margin=100, background=None)
+    crop = cv.cropContour(img, contours[1], margin=100, fill=None)
     assert crop.shape == (120, 160)
     assert crop.min() == 200
     assert cv.cropContour(img, contours[0], margin=5).shape == (61, 61)
@@ -245,6 +245,7 @@ def test_cropContour_does_not_modify_the_source(contours):
     [
         ({"margin": -1}, "margin"),
         ({"transparent": True}, "8-bit"),
+        ({"fill": float("nan")}, "fill"),
     ],
 )
 def test_cropContour_validation(contours, kwargs, match):
@@ -262,17 +263,25 @@ def test_cropContour_outside_the_image(contours):
 
 
 def test_drawContoursEx_uses_a_different_color_per_contour(shapes, contours):
-    out = cv.drawContoursEx(shapes, contours, thickness=cv.FILLED)
-    assert out.shape == (120, 160, 3)
+    img = cv.toBGR(shapes)
+    out = cv.drawContoursEx(img, contours, thickness=cv.FILLED)
+    assert out is img  # drawn in place, like cv.drawContours
     colors = {tuple(out[45, 45]), tuple(out[45, 115]), tuple(out[102, 80])}
     assert len(colors) == 3
-    assert shapes.ndim == 2  # the source is not modified
+    assert colors == {tuple(c) for c in cv.distinctColors(3)}
+
+
+def test_drawContoursEx_gray_stays_gray(shapes, contours):
+    img = shapes.copy()
+    out = cv.drawContoursEx(img, contours, thickness=cv.FILLED)
+    assert out is img and out.ndim == 2
+    assert out[45, 45] != out[45, 115]  # the luminance of each color
 
 
 def test_drawContoursEx_labels(shapes, contours):
-    plain = cv.drawContoursEx(shapes, contours)
-    numbered = cv.drawContoursEx(shapes, contours, labels=True)
-    named = cv.drawContoursEx(shapes, contours, labels=["a", "b", "c"])
+    plain = cv.drawContoursEx(cv.toBGR(shapes), contours)
+    numbered = cv.drawContoursEx(cv.toBGR(shapes), contours, labels=True)
+    named = cv.drawContoursEx(cv.toBGR(shapes), contours, labels=["a", "b", "c"])
     assert (numbered != plain).any()
     assert (named != plain).any()
 
@@ -290,3 +299,9 @@ def test_drawContoursEx_validation(shapes, contours):
         cv.drawContoursEx(shapes, contours, labels=["only one"])
     with pytest.raises(ValueError, match="8-bit"):
         cv.drawContoursEx(shapes.astype(np.float32), contours)
+    with pytest.raises(ValueError, match="fontScale"):
+        cv.drawContoursEx(shapes, contours, fontScale=0)
+    with pytest.raises(ValueError, match="colors"):
+        cv.drawContoursEx(shapes, contours, colors=[])
+    with pytest.raises(ValueError, match="empty"):
+        cv.drawContoursEx(np.zeros((0, 4), np.uint8), contours)

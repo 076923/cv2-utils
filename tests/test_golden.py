@@ -47,15 +47,15 @@ def test_gammaCorrection(rotate_src):
     _assert_close(cv.gammaCorrection(rotate_src, 2.2), _read("gammaCorrection_2.2.png"), max_abs=0)
 
 
-def test_DHEdge(rotate_src):
+def test_boldEdges(rotate_src):
     gray = cv.cvtColor(rotate_src, cv.COLOR_BGR2GRAY)
-    # DHEdge amplifies differences by pi, so allow a little more slack.
-    _assert_close(cv.DHEdge(gray), _read("DHEdge.png"), max_abs=4, max_mismatch_ratio=0.001)
+    # boldEdges amplifies differences by pi, so allow a little more slack.
+    _assert_close(cv.boldEdges(gray), _read("boldEdges.png"), max_abs=4, max_mismatch_ratio=0.001)
 
 
-def test_drawDBSCAN():
+def test_drawClusters():
     pytest.importorskip("sklearn")
     src = _read("dbscan_src.png")
-    maps, labels = cv.DBSCAN(src, 1.7, 2)
+    maps, _ = cv.dbscanColors(src, 1.7, 2)
     # A +-1 difference in the Lab conversion can move a few border pixels to another cluster.
-    _assert_close(cv.drawDBSCAN(src, maps, labels), _read("drawDBSCAN.png"), max_abs=2, max_mismatch_ratio=0.01)
+    _assert_close(cv.drawClusters(src, maps), _read("drawClusters.png"), max_abs=2, max_mismatch_ratio=0.01)

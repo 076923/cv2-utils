@@ -26,9 +26,16 @@ def padToMultiple(src: np.ndarray, multiple: int, color: Color = 0) -> np.ndarra
     Typical for neural networks that need sizes divisible by 32. The original pixels stay at the top-left, so
     coordinates do not change; crop the result back with ``dst[:h, :w]``.
 
+    Args:
+        src: Image to pad.
+        multiple: The width and height of the result are multiples of this.
+        color: Padding color: a scalar, or one value per channel.
+
     Raises:
-        ValueError: If ``multiple`` is not positive.
+        ValueError: If ``src`` is empty, ``multiple`` is not positive, or ``color`` is not finite or outside the
+            range of the image dtype.
     """
+    check_image_not_empty("src", src)
     if multiple < 1:
         raise ValueError(f"multiple must be positive, got {multiple}")
     h, w = src.shape[:2]
@@ -41,18 +48,20 @@ def padToMultiple(src: np.ndarray, multiple: int, color: Color = 0) -> np.ndarra
     return dst
 
 
-def padToSize(src: np.ndarray, size: tuple[int, int], color: Color = 0, center: bool = True) -> np.ndarray:
+def padToSize(src: np.ndarray, size: tuple[int, int], color: Color = 0, *, center: bool = True) -> np.ndarray:
     """Pad an image to exactly ``size`` without scaling it (use :func:`letterbox` to also scale).
 
     Args:
         src: Image to pad.
         size: Output size as ``(width, height)``; it must not be smaller than the image.
-        color: Padding color.
+        color: Padding color: a scalar, or one value per channel.
         center: Center the image; otherwise it stays at the top-left.
 
     Raises:
-        ValueError: If ``size`` is smaller than the image.
+        ValueError: If ``src`` is empty, ``size`` is smaller than the image, or ``color`` is not finite or outside
+            the range of the image dtype.
     """
+    check_image_not_empty("src", src)
     out_w, out_h = size
     h, w = src.shape[:2]
     if out_w < w or out_h < h:
@@ -91,8 +100,9 @@ def splitTiles(
         Tiles are views of ``src``; use :func:`mergeTiles` to put processed tiles back together.
 
     Raises:
-        ValueError: If ``tileSize`` is not positive or ``overlap`` is not smaller than the tile.
+        ValueError: If ``src`` is empty, ``tileSize`` is not positive, or ``overlap`` is not smaller than the tile.
     """
+    check_image_not_empty("src", src)
     tile_w, tile_h = tileSize
     if tile_w < 1 or tile_h < 1:
         raise ValueError(f"tileSize must be positive, got {tileSize}")
@@ -115,11 +125,13 @@ def mergeTiles(tiles: Sequence[tuple[np.ndarray, tuple[int, int]]], size: tuple[
         The assembled image, with the dtype of the tiles. Pixels covered by no tile are 0.
 
     Raises:
-        ValueError: If ``tiles`` is empty.
+        ValueError: If ``tiles`` is empty or ``size`` is not positive.
     """
     if len(tiles) == 0:
         raise ValueError("tiles must not be empty")
     width, height = size
+    if width < 1 or height < 1:
+        raise ValueError(f"size must be at least 1x1, got {size}")
     first = tiles[0][0]
     shape = (height, width, *first.shape[2:])
     count = np.zeros((height, width), np.uint16)

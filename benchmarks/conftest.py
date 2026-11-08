@@ -32,7 +32,7 @@ def rng() -> np.random.Generator:
 @pytest.fixture(scope="session")
 def bgr(rng: np.random.Generator) -> np.ndarray:
     """A 1080p BGR photo-like image: smooth gradients plus noise and a few shapes."""
-    img = cv.makeGradient((1080, 1920, 3), (40, 60, 90), (200, 180, 160))
+    img = cv.makeGradient((1920, 1080), (40, 60, 90), (200, 180, 160))
     noise = rng.integers(-20, 20, img.shape, np.int16)
     img = np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
     cv.circle(img, (600, 500), 200, (255, 255, 255), -1)

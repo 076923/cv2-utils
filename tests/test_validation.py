@@ -15,6 +15,7 @@ INF = float("inf")
 IMG = np.zeros((40, 60, 3), np.uint8)
 GRAY = np.zeros((40, 60), np.uint8)
 EMPTY = np.zeros((0, 0, 3), np.uint8)
+CONTOUR = np.array([[[5, 5]], [[20, 5]], [[20, 20]], [[5, 20]]], np.int32)
 
 
 # --- NaN and infinite numeric parameters ------------------------------------------
@@ -52,6 +53,35 @@ EMPTY = np.zeros((0, 0, 3), np.uint8)
         ("toBGRA alpha", lambda v: cv.toBGRA(IMG, alpha=v)),
         ("writeVideo fps", lambda v: cv.writeVideo("x.avi", [IMG], fps=v)),
         ("fourPointTransform pts", lambda v: cv.fourPointTransform(IMG, [[0, 0], [10, 0], [10, 10], [0, v]])),
+        ("translate dx", lambda v: cv.translate(IMG, v, 0)),
+        ("translate dy", lambda v: cv.translate(IMG, 0, v)),
+        ("imcolor color", lambda v: cv.imcolor((4, 4), v)),
+        ("imcolorLike color", lambda v: cv.imcolorLike(IMG, v)),
+        ("makeGradient start", lambda v: cv.makeGradient((4, 4), v, 255)),
+        ("makeGradient end", lambda v: cv.makeGradient((4, 4), 0, (v, 0, 0))),
+        ("cropRotatedRect rect", lambda v: cv.cropRotatedRect(IMG, ((v, 5), (4, 4), 0))),
+        ("cropRect rect", lambda v: cv.cropRect(IMG, (0, 0, v, 4))),
+        ("dbscanColors eps", lambda v: cv.dbscanColors(IMG, v)),
+        ("clusterPoints eps", lambda v: cv.clusterPoints([[0, 0], [1, 1]], v)),
+        ("meanShiftColors bandwidth", lambda v: cv.meanShiftColors(IMG, bandwidth=v)),
+        ("peakColors minShare", lambda v: cv.peakColors(IMG, minShare=v)),
+        ("overlayImage alpha", lambda v: cv.overlayImage(IMG, IMG, alpha=v)),
+        ("overlayMask alpha", lambda v: cv.overlayMask(IMG, GRAY, alpha=v)),
+        ("nms iouThreshold", lambda v: cv.nms([[0, 0, 1, 1]], [1.0], iouThreshold=v)),
+        ("nms scoreThreshold", lambda v: cv.nms([[0, 0, 1, 1]], [1.0], scoreThreshold=v)),
+        ("expandBoxes margin", lambda v: cv.expandBoxes([0, 0, 1, 1], margin=v)),
+        ("findTemplate threshold", lambda v: cv.findTemplate(IMG, IMG[:4, :4], threshold=v)),
+        ("autoCanny sigma", lambda v: cv.autoCanny(GRAY, sigma=v)),
+        ("removeSmallObjects minArea", lambda v: cv.removeSmallObjects(GRAY, minArea=v)),
+        ("diffMask minArea", lambda v: cv.diffMask(IMG, IMG, minArea=v)),
+        ("applyMask fill", lambda v: cv.applyMask(IMG, GRAY, fill=v)),
+        ("cropContour fill", lambda v: cv.cropContour(IMG, CONTOUR, fill=v)),
+        ("flattenAlpha fill", lambda v: cv.flattenAlpha(np.zeros((4, 4, 4), np.uint8), fill=v)),
+        ("autoContrast clip", lambda v: cv.autoContrast(IMG, clip=v)),
+        ("drawLabel fontScale", lambda v: cv.drawLabel(IMG.copy(), (0, 0, 10, 10), "a", 255, fontScale=v)),
+        ("drawContoursEx fontScale", lambda v: cv.drawContoursEx(IMG.copy(), [CONTOUR], fontScale=v)),
+        ("deskew maxAngle", lambda v: cv.deskew(GRAY, maxAngle=v)),
+        ("inRangeEx lowerb", lambda v: cv.inRangeEx(IMG, (v, 0, 0), (10, 255, 255))),
     ],
     ids=lambda x: x if isinstance(x, str) else "",
 )
@@ -80,12 +110,43 @@ def test_rotateEx_rejects_non_positive_scale(scale):
         ("ssim dataRange", lambda: cv.ssim(IMG, IMG, dataRange=0)),
         ("equalizeHistEx clipLimit", lambda: cv.equalizeHistEx(IMG, clahe=True, clipLimit=0)),
         ("cutout feather", lambda: cv.cutout(IMG, GRAY, feather=-1)),
-        ("urlread maxBytes", lambda: cv.urlread("file:///x.png", maxBytes=0)),
+        ("imreadUrl maxBytes", lambda: cv.imreadUrl("file:///x.png", maxBytes=0)),
+        ("kmeansColors maxIter", lambda: cv.kmeansColors(IMG, 2, maxIter=0)),
+        ("dbscanColors eps", lambda: cv.dbscanColors(IMG, 0)),
+        ("dbscanColors minSamples", lambda: cv.dbscanColors(IMG, 1.0, minSamples=0)),
+        ("meanShiftColors bandwidth", lambda: cv.meanShiftColors(IMG, bandwidth=0)),
+        ("nms iouThreshold", lambda: cv.nms([[0, 0, 1, 1]], [1.0], iouThreshold=1.5)),
+        ("makeGradient size", lambda: cv.makeGradient((0, 4), 0, 255)),
+        ("imcolor size", lambda: cv.imcolor((4, 0), 0)),
+        ("drawHistogram size", lambda: cv.drawHistogram(IMG, size=(0, 10))),
+        ("mergeTiles size", lambda: cv.mergeTiles([(IMG, (0, 0))], (0, 10))),
+        ("findTemplate maxCount", lambda: cv.findTemplate(IMG, IMG[:4, :4], maxCount=-1)),
+        ("findCircles minRadius", lambda: cv.findCircles(GRAY, minRadius=-1)),
+        ("findCircles maxRadius", lambda: cv.findCircles(GRAY, maxRadius=-1)),
+        ("cropRect rect", lambda: cv.cropRect(IMG, (0, 0, 0, 4))),
+        ("drawContoursEx fontScale", lambda: cv.drawContoursEx(IMG.copy(), [CONTOUR], fontScale=0)),
     ],
     ids=lambda x: x if isinstance(x, str) else "",
 )
 def test_negative_or_zero_parameters_raise_value_error(name, call):
     with pytest.raises(ValueError):
+        call()
+
+
+@pytest.mark.parametrize(
+    ("call", "match"),
+    [
+        (lambda: cv.findCircles(GRAY, minRadius=-1), "minRadius"),
+        (lambda: cv.findCircles(GRAY, maxRadius=-1), "maxRadius"),
+        (lambda: cv.filterContours([CONTOUR], minArea=float("nan")), "minArea must be a number"),
+        (lambda: cv.filterContours([CONTOUR], minArea=10, maxArea=5), "minArea must not exceed maxArea"),
+        (lambda: cv.filterContours([CONTOUR], minAspectRatio=2, maxAspectRatio=1), "minAspectRatio"),
+        (lambda: cv.cropRect(IMG, (0, 0, 0, 4)), "rect"),
+        (lambda: cv.cropRect(IMG, (100, 100, 4, 4)), "rect .* outside"),
+    ],
+)
+def test_messages_name_the_argument(call, match):
+    with pytest.raises(ValueError, match=match):
         call()
 
 
@@ -99,6 +160,8 @@ def test_negative_or_zero_parameters_raise_value_error(name, call):
         ("hconcatEx", lambda c: cv.hconcatEx([IMG, GRAY], color=c)),
         ("letterbox", lambda c: cv.letterbox(IMG, (80, 80), color=c)),
         ("padToSize", lambda c: cv.padToSize(IMG, (80, 80), color=c)),
+        ("imcolor", lambda c: cv.imcolor((4, 4), c)),
+        ("imcolorLike", lambda c: cv.imcolorLike(IMG, c)),
     ],
     ids=lambda x: x if isinstance(x, str) else "",
 )
@@ -150,6 +213,52 @@ def test_float_images_accept_any_finite_color():
         ("peakColors", lambda: cv.peakColors(EMPTY)),
         ("hconcatEx", lambda: cv.hconcatEx([IMG, EMPTY])),
         ("overlayImage", lambda: cv.overlayImage(IMG, EMPTY)),
+        ("rotateEx", lambda: cv.rotateEx(EMPTY, 30)),
+        ("fourPointTransform", lambda: cv.fourPointTransform(EMPTY, [[0, 0], [10, 0], [10, 10], [0, 10]])),
+        ("padToMultiple", lambda: cv.padToMultiple(EMPTY, 32)),
+        ("padToSize", lambda: cv.padToSize(EMPTY, (10, 10))),
+        ("splitTiles", lambda: cv.splitTiles(EMPTY, (10, 10))),
+        ("mapTiles", lambda: cv.mapTiles(EMPTY, (10, 10), lambda t: t)),
+        ("gammaCorrection", lambda: cv.gammaCorrection(EMPTY, 2.2)),
+        ("boldEdges", lambda: cv.boldEdges(EMPTY)),
+        ("drawHistogram", lambda: cv.drawHistogram(EMPTY)),
+        ("drawLabel", lambda: cv.drawLabel(EMPTY, (0, 0, 1, 1), "a", 255)),
+        ("drawBoxes", lambda: cv.drawBoxes(EMPTY, [[0, 0, 1, 1]])),
+        ("drawPoints", lambda: cv.drawPoints(EMPTY, [[0, 0]])),
+        ("drawGrid", lambda: cv.drawGrid(EMPTY, 10)),
+        ("drawDashedLine", lambda: cv.drawDashedLine(EMPTY, (0, 0), (5, 5), 255)),
+        ("drawDashedRectangle", lambda: cv.drawDashedRectangle(EMPTY, (0, 0, 5, 5), 255)),
+        ("drawRoundedRectangle", lambda: cv.drawRoundedRectangle(EMPTY, (0, 0, 5, 5), 255)),
+        ("drawContoursEx", lambda: cv.drawContoursEx(EMPTY, [CONTOUR])),
+        ("overlayMask", lambda: cv.overlayMask(EMPTY, np.zeros((0, 0), np.uint8))),
+        ("findTemplate src", lambda: cv.findTemplate(EMPTY, IMG)),
+        ("findTemplate templ", lambda: cv.findTemplate(IMG, EMPTY)),
+        ("inRangeEx", lambda: cv.inRangeEx(EMPTY, (0, 0, 0), (10, 10, 10))),
+        ("autoCanny", lambda: cv.autoCanny(EMPTY)),
+        ("findLines", lambda: cv.findLines(EMPTY)),
+        ("findCircles", lambda: cv.findCircles(EMPTY)),
+        ("findBlobs", lambda: cv.findBlobs(EMPTY)),
+        ("imshowEx", lambda: cv.imshowEx("w", EMPTY)),
+        ("imshowInline", lambda: cv.imshowInline(EMPTY)),
+        ("imencodeBase64", lambda: cv.imencodeBase64(EMPTY)),
+        ("translate", lambda: cv.translate(EMPTY, 1, 1)),
+        ("cropRotatedRect", lambda: cv.cropRotatedRect(EMPTY, ((5, 5), (4, 4), 0))),
+        ("deskew", lambda: cv.deskew(EMPTY)),
+        ("cropRect", lambda: cv.cropRect(EMPTY, (0, 0, 4, 4))),
+        ("cropCenter", lambda: cv.cropCenter(EMPTY, 4)),
+        ("cropContour", lambda: cv.cropContour(EMPTY, CONTOUR)),
+        ("applyMask", lambda: cv.applyMask(EMPTY, np.zeros((0, 0), np.uint8))),
+        ("kmeansColors", lambda: cv.kmeansColors(EMPTY, 1)),
+        ("meanShiftColors", lambda: cv.meanShiftColors(EMPTY)),
+        ("dbscanColors", lambda: cv.dbscanColors(EMPTY, 1.0)),
+        ("drawClusters", lambda: cv.drawClusters(EMPTY, np.zeros((0, 0), np.int32))),
+        ("matchFeatures", lambda: cv.matchFeatures(EMPTY, IMG)),
+        ("alignImages", lambda: cv.alignImages(IMG, EMPTY)),
+        ("sharpnessScore", lambda: cv.sharpnessScore(EMPTY)),
+        ("imageHash", lambda: cv.imageHash(EMPTY)),
+        ("binarize", lambda: cv.binarize(EMPTY)),
+        ("morphology", lambda: cv.morphology(EMPTY, "open")),
+        ("flattenAlpha", lambda: cv.flattenAlpha(EMPTY)),
     ],
     ids=lambda x: x if isinstance(x, str) else "",
 )
@@ -218,28 +327,28 @@ def test_writeVideo_rejects_frames_that_are_not_gray_or_bgr(tmp_path, shape):
         cv.writeVideo(tmp_path / "a.avi", [np.zeros(shape, np.uint8)], fps=10)
 
 
-# --- urlread size limit ------------------------------------------------------------
+# --- imreadUrl size limit ------------------------------------------------------------
 
 
-def test_urlread_maxBytes_accepts_a_file_that_fits(tmp_path, bgr=IMG):
+def test_imreadUrl_maxBytes_accepts_a_file_that_fits(tmp_path, bgr=IMG):
     path = tmp_path / "img.png"
     assert cv.imwrite(str(path), bgr)
-    np.testing.assert_array_equal(cv.urlread(path.as_uri(), maxBytes=path.stat().st_size), bgr)
+    np.testing.assert_array_equal(cv.imreadUrl(path.as_uri(), maxBytes=path.stat().st_size), bgr)
 
 
-def test_urlread_maxBytes_rejects_a_larger_file(tmp_path, bgr=IMG):
+def test_imreadUrl_maxBytes_rejects_a_larger_file(tmp_path, bgr=IMG):
     path = tmp_path / "img.png"
     assert cv.imwrite(str(path), bgr)
     with pytest.raises(ValueError, match="maxBytes"):
-        cv.urlread(path.as_uri(), maxBytes=path.stat().st_size - 1)
+        cv.imreadUrl(path.as_uri(), maxBytes=path.stat().st_size - 1)
 
 
-def test_urlread_maxBytes_uses_content_length_before_downloading(monkeypatch):
+def test_imreadUrl_maxBytes_uses_content_length_before_downloading(monkeypatch):
     import io
     import sys
     from email.message import Message
 
-    urlread_module = sys.modules["cv2u.imgcodecs.urlread"]
+    urlread_module = sys.modules["cv2u.imgcodecs.url"]
 
     class Response(io.BytesIO):
         headers = Message()
@@ -256,4 +365,60 @@ def test_urlread_maxBytes_uses_content_length_before_downloading(monkeypatch):
 
     monkeypatch.setattr(urlread_module, "urlopen", lambda request, timeout=None: Response())
     with pytest.raises(ValueError, match="maxBytes"):
-        cv.urlread("https://example.invalid/big.png", maxBytes=1000)
+        cv.imreadUrl("https://example.invalid/big.png", maxBytes=1000)
+
+
+# --- shared helpers in cv2u._validate -------------------------------------------------------------------------------
+
+
+def test_check_size_accepts_positive_sizes_and_names_the_argument():
+    from cv2u._validate import check_size
+
+    assert check_size("size", (3, 4)) == (3, 4)
+    assert check_size("size", [2.0, 5.0]) == (2, 5)
+    for bad in [(0, 4), (3, -1), (NAN, 4), (3, INF), (3,)]:
+        with pytest.raises(ValueError, match="patch"):
+            check_size("patch", bad)
+
+
+def test_check_uint8_rejects_other_depths_empty_and_two_channel_images():
+    from cv2u._validate import check_uint8
+
+    assert check_uint8("src", IMG) == 3 and check_uint8("src", GRAY) == 1
+    with pytest.raises(ValueError, match=r"src.*uint8"):
+        check_uint8("src", IMG.astype(np.float32))
+    with pytest.raises(ValueError, match=r"src.*empty"):
+        check_uint8("src", EMPTY)
+    with pytest.raises(ValueError, match=r"src.*channels"):
+        check_uint8("src", np.zeros((4, 4, 2), np.uint8))
+
+
+def test_is_single_color_and_as_color():
+    from cv2u._validate import as_color, is_single_color
+
+    assert (
+        is_single_color(200)
+        and is_single_color(1.5)
+        and is_single_color(np.uint8(3))
+        and is_single_color(np.float32(1))
+    )
+    assert is_single_color((0, 0, 255)) and is_single_color([0, 0, 255, 255]) and is_single_color([7])
+    assert is_single_color(np.array([0, 0, 255], np.uint8)) and is_single_color(np.array([0.5, 0.5, 0.5]))
+    assert is_single_color((np.uint8(1), np.uint8(2), np.uint8(3)))
+    assert not is_single_color([(0, 0, 255), (255, 0, 0)])
+    assert not is_single_color(np.array([[0, 0, 255], [255, 0, 0]], np.uint8))
+    assert not is_single_color([200, 100])  # two gray levels, no image has 2 channels
+    assert not is_single_color("red") and not is_single_color(True) and not is_single_color(None)
+    assert not is_single_color([]) and not is_single_color([[1, 2, 3]])
+    assert as_color(np.array([0, 0, 255], np.uint8)) == (0.0, 0.0, 255.0)
+    assert as_color(np.uint8(9)) == 9.0 and as_color(3) == 3.0 and as_color([1, 2, 3]) == (1.0, 2.0, 3.0)
+
+
+def test_drawBoxes_numpy_color_is_one_color():
+    img = IMG.copy()
+    cv.drawBoxes(img, [(5, 5, 10, 10), (20, 20, 10, 10)], colors=np.array([0, 0, 255], np.uint8), thickness=1)
+    assert img[5, 10].tolist() == [0, 0, 255] and img[20, 25].tolist() == [0, 0, 255]
+    img = IMG.copy()
+    cv.drawBoxes(img, [(5, 5, 10, 10), (20, 20, 10, 10)], colors=np.array([[255, 0, 0], [0, 255, 0]], np.uint8))
+    assert img[5, 10].tolist() == [255, 0, 0] and img[20, 25].tolist() == [0, 255, 0]
+    cv.drawBoxes(img, [(5, 5, 10, 10)], labels=["a"], colors=np.uint8(255))

@@ -45,7 +45,9 @@ def test_cv2_passthrough():
     assert cv is not cv2
     assert cv.imread is cv2.imread
     assert cv.COLOR_BGR2GRAY == cv2.COLOR_BGR2GRAY
-    assert cv.dnn is cv2.dnn
+    assert cv.dnn is not cv2.dnn  # cv2u.dnn adds helpers and passes the rest through
+    assert cv.dnn.readNet is cv2.dnn.readNet
+    assert cv.dnn.DNN_BACKEND_OPENCV == cv2.dnn.DNN_BACKEND_OPENCV
     assert "imread" in dir(cv)
 
 
@@ -83,10 +85,10 @@ def test_extension_names_follow_opencv_style():
 
 def test_top_level_exports_every_submodule_name():
     # Principle: ``import cv2u as cv`` reaches every extension; nothing is reachable only from a submodule.
-    from cv2u import core, flag, highgui, imgcodecs, imgproc, videoio
+    from cv2u import calib3d, core, flag, highgui, imgcodecs, imgproc, videoio
 
     submodule_names = set()
-    for module in (core, flag, highgui, imgcodecs, imgproc, videoio):
+    for module in (calib3d, core, flag, highgui, imgcodecs, imgproc, videoio):
         submodule_names |= set(module.__all__)
     assert submodule_names == set(cv.__all__)
 
@@ -137,12 +139,26 @@ def test_dbscan_roundtrip():
     pytest.importorskip("sklearn")
     src = np.zeros((8, 8, 3), np.uint8)
     src[:, 4:] = (200, 50, 10)
-    maps, labels = cv.DBSCAN(src, 1.7, 2)
-    assert maps.shape == (8, 8)
-    assert len(np.unique(labels)) == 2
-    dst = cv.drawDBSCAN(src, maps, labels)
+    maps, centers = cv.dbscanColors(src, 1.7, 2)
+    assert isinstance(cv.dbscanColors(src, 1.7, 2), cv.Clusters)
+    assert maps.shape == (8, 8) and maps.dtype == np.int32
+    assert sorted(np.unique(maps).tolist()) == [0, 1]  # labels start at 0; -1 would be noise
+    assert centers.shape == (2, 3) and centers.dtype == np.uint8
+    assert {tuple(c) for c in centers} == {(0, 0, 0), (200, 50, 10)}
+    dst = cv.drawClusters(src, maps)
     assert dst.shape == src.shape
     np.testing.assert_array_equal(dst, src)
+
+
+def test_dbscan_noise_is_minus_one():
+    pytest.importorskip("sklearn")
+    src = np.zeros((6, 6, 3), np.uint8)
+    src[2, 2] = (255, 255, 255)  # a lone pixel is noise with minSamples=4
+    maps, centers = cv.dbscanColors(src, 1.7)
+    assert maps[2, 2] == -1
+    assert len(centers) == 1 and maps.max() == 0
+    painted = cv.drawClusters(src, maps)
+    assert tuple(painted[2, 2]) == (255, 255, 255)  # noise keeps its original color
 
 
 def test_dbscan_without_cluster_extra(monkeypatch, bgr):
@@ -150,19 +166,29 @@ def test_dbscan_without_cluster_extra(monkeypatch, bgr):
     monkeypatch.setitem(sys.modules, "sklearn", None)
     monkeypatch.setitem(sys.modules, "sklearn.cluster", None)
     with pytest.raises(ImportError, match=r"python-opencv-utils\[cluster\]"):
-        cv.DBSCAN(bgr, 1.7, 2)
+        cv.dbscanColors(bgr, 1.7, 2)
 
 
-@pytest.mark.parametrize("src", [np.zeros((8, 8), np.uint8), np.zeros((8, 8, 4), np.uint8), [[1, 2, 3]]])
+@pytest.mark.parametrize("src", [np.zeros((8, 8), np.uint8), np.zeros((8, 8, 4), np.uint8), np.zeros((1, 3), np.uint8)])
 def test_dbscan_rejects_non_bgr(src):
     with pytest.raises(ValueError, match="3-channel"):
-        cv.DBSCAN(src, 1.7, 2)
+        cv.dbscanColors(src, 1.7, 2)
 
 
-def test_drawDBSCAN_rejects_mismatched_maps(bgr):
-    labels = np.zeros(10, dtype=np.int64)
-    with pytest.raises(ValueError, match="do not match"):
-        cv.drawDBSCAN(bgr, labels.reshape(2, 5), labels)
+def test_dbscan_validation(bgr):
+    with pytest.raises(ValueError, match="uint8"):
+        cv.dbscanColors(bgr.astype(np.float32), 1.7)
+    with pytest.raises(ValueError, match="empty"):
+        cv.dbscanColors(np.zeros((0, 0, 3), np.uint8), 1.7)
+    with pytest.raises(ValueError, match="eps"):
+        cv.dbscanColors(bgr, 0)
+    with pytest.raises(ValueError, match="minSamples"):
+        cv.dbscanColors(bgr, 1.7, minSamples=0)
+
+
+def test_drawClusters_rejects_mismatched_maps(bgr):
+    with pytest.raises(ValueError, match="maps"):
+        cv.drawClusters(bgr, np.zeros((2, 5), dtype=np.int64))
 
 
 def test_gammaCorrection(bgr):
@@ -232,51 +258,62 @@ def test_isInside_matches_pointPolygonTest():
         assert cv.isInside((x, y), star) == (expected > 0), (x, y)
 
 
-def test_DHEdge(bgr):
+def test_boldEdges(bgr):
     gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
-    dst = cv.DHEdge(gray)
+    dst = cv.boldEdges(gray)
     assert dst.shape == gray.shape
     assert dst.dtype == np.uint8
 
 
-def test_DHEdge_flat_image_has_no_edges():
+def test_boldEdges_flat_image_has_no_edges():
     # Including the 1-pixel border, which must not keep the source intensity.
-    assert not cv.DHEdge(np.full((10, 12), 100, np.uint8)).any()
+    assert not cv.boldEdges(np.full((10, 12), 100, np.uint8)).any()
 
 
-def test_DHEdge_color(bgr):
-    assert cv.DHEdge(bgr).shape == bgr.shape
+def test_boldEdges_color(bgr):
+    assert cv.boldEdges(bgr).shape == bgr.shape
 
 
-def test_DHEdge_validation():
+def test_boldEdges_validation():
     with pytest.raises(ValueError, match="uint8"):
-        cv.DHEdge(np.zeros((8, 8), np.float32))
+        cv.boldEdges(np.zeros((8, 8), np.float32))
+    with pytest.raises(ValueError, match="empty"):
+        cv.boldEdges(np.zeros((0, 8), np.uint8))
 
 
 def test_makeGradient_bgr():
-    img = cv.makeGradient((10, 20, 3), (0, 0, 0), (255, 128, 64))
+    img = cv.makeGradient((20, 10), (0, 0, 0), (255, 128, 64))
     assert img.shape == (10, 20, 3)
     assert img.dtype == np.uint8
     assert tuple(img[0, 0]) == (0, 0, 0)
     assert tuple(img[-1, -1]) == (255, 128, 64)
 
 
-@pytest.mark.parametrize("shape", [(10, 20), (10, 20, 1)])
 @pytest.mark.parametrize(("start", "end"), [(0, 255), ((0,), (255,))])
-def test_makeGradient_gray(shape, start, end):
-    img = cv.makeGradient(shape, start, end)
-    assert img.shape == shape
+def test_makeGradient_gray(start, end):
+    img = cv.makeGradient((20, 10), start, end, channels=1)
+    assert img.shape == (10, 20)
     assert img.flat[0] == 0
     assert img.flat[-1] == 255
 
 
-def test_makeGradient_invalid_channels():
-    with pytest.raises(ValueError, match="channels"):
-        cv.makeGradient((10, 10, 4), 0, 255)
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"size": (10, 10), "start": 0, "end": 255, "channels": 4},
+        {"size": (0, 10), "start": 0, "end": 255},
+        {"size": (10, 10), "start": -1, "end": 255},
+        {"size": (10, 10), "start": 0, "end": float("nan")},
+        {"size": (10, 10), "start": (0, 0), "end": 255},
+    ],
+)
+def test_makeGradient_validation(kwargs):
+    with pytest.raises(ValueError):
+        cv.makeGradient(**kwargs)
 
 
 def test_makeGradient_horizontal():
-    img = cv.makeGradient((4, 256, 3), (0, 0, 0), (255, 255, 255), direction="horizontal")
+    img = cv.makeGradient((256, 4), (0, 0, 0), (255, 255, 255), direction="horizontal")
     assert img.shape == (4, 256, 3)
     np.testing.assert_array_equal(img[0], img[-1])  # every row is the same
     assert img[0, 0, 0] == 0
@@ -285,7 +322,7 @@ def test_makeGradient_horizontal():
 
 
 def test_makeGradient_vertical():
-    img = cv.makeGradient((256, 4), 0, 255, direction="vertical")
+    img = cv.makeGradient((4, 256), 0, 255, direction="vertical", channels=1)
     assert img.shape == (256, 4)
     np.testing.assert_array_equal(img[:, 0], img[:, -1])  # every column is the same
     assert img[0, 0] == 0
@@ -294,12 +331,12 @@ def test_makeGradient_vertical():
 
 def test_makeGradient_horizontal_is_default():
     np.testing.assert_array_equal(
-        cv.makeGradient((10, 20, 3), 0, 255), cv.makeGradient((10, 20, 3), 0, 255, direction="horizontal")
+        cv.makeGradient((20, 10), 0, 255), cv.makeGradient((20, 10), 0, 255, direction="horizontal")
     )
 
 
 def test_makeGradient_raster():
-    img = cv.makeGradient((2, 3), 0, 250, direction="raster")
+    img = cv.makeGradient((3, 2), 0, 250, direction="raster", channels=1)
     np.testing.assert_array_equal(img, [[0, 50, 100], [150, 200, 250]])
 
 
@@ -309,8 +346,28 @@ def test_makeGradient_invalid_direction():
 
 
 def test_imcolor(bgr):
-    assert tuple(cv.imcolor((5, 5, 3), (1, 2, 3))[2, 2]) == (1, 2, 3)
-    assert cv.imcolor((2, 2), 0.5, dtype=np.float32).dtype == np.float32
+    img = cv.imcolor((5, 4), (1, 2, 3))
+    assert img.shape == (4, 5, 3) and img.dtype == np.uint8
+    assert tuple(img[2, 2]) == (1, 2, 3)
+    assert cv.imcolor((2, 3), 0.5, channels=1, dtype=np.float32).shape == (3, 2)
+    assert cv.imcolor((2, 2), 0.5, channels=1, dtype=np.float32).dtype == np.float32
+    assert tuple(cv.imcolor((2, 2), (1, 2, 3, 4), channels=4)[0, 0]) == (1, 2, 3, 4)
+    assert tuple(cv.imcolor((2, 2), 9)[0, 0]) == (9, 9, 9)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"size": (0, 2), "color": 0},
+        {"size": (2, 2), "color": 0, "channels": 2},
+        {"size": (2, 2), "color": 256},
+        {"size": (2, 2), "color": float("inf")},
+        {"size": (2, 2), "color": (1, 2)},
+    ],
+)
+def test_imcolor_validation(kwargs):
+    with pytest.raises(ValueError):
+        cv.imcolor(**kwargs)
 
 
 def test_imcolorLike(bgr):
@@ -320,28 +377,40 @@ def test_imcolorLike(bgr):
     assert tuple(like[0, 0]) == (1, 2, 3)
     assert cv.imcolorLike(np.zeros((2, 2), np.float32), 0.5).dtype == np.float32
     assert cv.imcolorLike(np.zeros((2, 2), np.float32), 7, dtype=np.uint8).dtype == np.uint8
+    with pytest.raises(ValueError, match="color"):
+        cv.imcolorLike(bgr, 300)
+    with pytest.raises(ValueError, match="color"):
+        cv.imcolorLike(bgr, (1, 2))
+    with pytest.raises(ValueError, match="color"):
+        cv.imcolorLike(np.zeros((2, 2), np.float32), float("nan"))
 
 
 # --- imgcodecs -------------------------------------------------------------------
 
 
-def test_urlread_file_url(tmp_path, bgr):
+def test_imreadUrl_file_url(tmp_path, bgr):
     path = tmp_path / "img.png"
     assert cv.imwrite(str(path), bgr)
-    np.testing.assert_array_equal(cv.urlread(path.as_uri()), bgr)
+    np.testing.assert_array_equal(cv.imreadUrl(path.as_uri()), bgr)
 
 
-def test_urlread_undecodable_returns_none(tmp_path):
+def test_imreadUrl_reads_color_by_default_like_imread(tmp_path):
+    path = tmp_path / "img.png"
+    assert cv.imwrite(str(path), np.zeros((4, 4, 4), np.uint8))
+    assert cv.imreadUrl(path.as_uri()).shape == (4, 4, 3)
+    assert cv.imreadUrl(path.as_uri(), cv.IMREAD_UNCHANGED).shape == (4, 4, 4)
+
+
+def test_imreadUrl_undecodable_returns_none(tmp_path):
     path = tmp_path / "not-an-image.png"
     path.write_bytes(b"hello")
-    assert cv.urlread(path.as_uri()) is None
+    assert cv.imreadUrl(path.as_uri()) is None
 
 
-def test_urlread_sends_headers(monkeypatch, tmp_path, bgr):
+def test_imreadUrl_sends_headers(monkeypatch, tmp_path, bgr):
     import urllib.request
 
-    # ``cv2u.imgcodecs.urlread`` is the re-exported function, so take the module from sys.modules.
-    urlread_module = sys.modules["cv2u.imgcodecs.urlread"]
+    urlread_module = sys.modules["cv2u.imgcodecs.url"]
 
     path = tmp_path / "img.png"
     assert cv.imwrite(str(path), bgr)
@@ -354,12 +423,12 @@ def test_urlread_sends_headers(monkeypatch, tmp_path, bgr):
         return real_urlopen(request, timeout=timeout)
 
     monkeypatch.setattr(urlread_module, "urlopen", spy)
-    cv.urlread(path.as_uri(), timeout=5, headers={"X-Test": "1"})
+    cv.imreadUrl(path.as_uri(), timeout=5, headers={"X-Test": "1"})
     assert seen["User-agent"].startswith("cv2u")
     assert seen["X-test"] == "1"
     assert seen["timeout"] == 5
 
-    cv.urlread(path.as_uri(), headers={"User-Agent": "custom"})
+    cv.imreadUrl(path.as_uri(), headers={"User-Agent": "custom"})
     assert seen["User-agent"] == "custom"
 
 
@@ -376,8 +445,7 @@ def test_flip_flags(bgr):
 def test_putTextEx(bgr, gray_input, font_path):
     font = font_path
     src = np.zeros((40, 60), np.uint8) if gray_input else np.zeros_like(bgr)
-    before = src.copy()
     dst = cv.putTextEx(src, "Hi 한글", (2, 2), font, 20, (255, 255, 255))  # pathlib.Path is accepted
-    assert dst.shape == (40, 60, 3)
+    assert dst is src  # drawn in place, like cv.putText
+    assert dst.shape == src.shape  # grayscale stays grayscale
     assert dst.any()
-    np.testing.assert_array_equal(src, before)  # src is not modified

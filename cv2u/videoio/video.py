@@ -1,4 +1,3 @@
-import math
 import os
 from collections.abc import Iterable, Iterator
 from itertools import chain
@@ -6,6 +5,8 @@ from typing import NamedTuple
 
 import cv2
 import numpy as np
+
+from .._validate import check_finite
 
 __all__ = ["VideoInfo", "readFrameAt", "readFrames", "videoInfo", "writeVideo"]
 
@@ -60,22 +61,20 @@ def readFrames(source: VideoSource, step: int = 1, start: int = 0) -> Iterator[n
     """Iterate over the frames of a video file, stream or camera.
 
     Replaces the usual ``cap = cv.VideoCapture(...)`` / ``while True: ok, frame = cap.read()`` / ``cap.release()``
-    loop. The capture is released when the iteration ends, also on ``break``.
+    loop: ``for frame in cv.readFrames("video.mp4", step=5): ...``. The capture is released when the iteration
+    ends, also on ``break``.
 
     Args:
         source: File path or URL, or a camera index.
         step: Yield every ``step``-th frame (skipped frames are not decoded).
         start: Number of frames to skip at the beginning.
 
+    Returns:
+        An iterator over the frames (8-bit BGR images).
+
     Raises:
         OSError: If the source cannot be opened.
         ValueError: If ``step < 1`` or ``start < 0``.
-
-    Example:
-        ```python
-        for frame in cv.readFrames("video.mp4", step=5):
-            ...
-        ```
     """
     if step < 1:
         raise ValueError(f"step must be at least 1, got {step}")
@@ -138,8 +137,7 @@ def writeVideo(
         OSError: If the video writer cannot be opened (for example, the codec is not available).
     """
     path = os.fspath(filename)
-    if not math.isfinite(fps) or fps <= 0:
-        raise ValueError(f"fps must be positive, got {fps}")
+    check_finite("fps", fps, positive=True)
     extension = os.path.splitext(path)[1].lower()
     code = fourcc or _FOURCC_BY_EXTENSION.get(extension)
     if code is None:

@@ -15,8 +15,8 @@ def test_rotateEx(benchmark, bgr):
     benchmark(cv.rotateEx, bgr, 30)
 
 
-def test_cropEx(benchmark, bgr):
-    benchmark(cv.cropEx, bgr, (-100, -100, 800, 600))
+def test_cropRect(benchmark, bgr):
+    benchmark(cv.cropRect, bgr, (-100, -100, 800, 600))
 
 
 def test_montage(benchmark, small):

@@ -17,6 +17,9 @@ def sharpnessScore(src: np.ndarray) -> float:
 
     Args:
         src: Grayscale, BGR or BGRA image.
+
+    Raises:
+        ValueError: If ``src`` is empty or has an unsupported channel count.
     """
     laplacian = cv2.Laplacian(toGray(src).astype(np.float64), cv2.CV_64F)
     return float(laplacian.var())
@@ -63,7 +66,7 @@ def ssim(a: np.ndarray, b: np.ndarray, dataRange: float | None = None) -> float:
     return float(ssim_map.mean())
 
 
-def diffMask(a: np.ndarray, b: np.ndarray, threshold: float = 25, minArea: int = 0) -> np.ndarray:
+def diffMask(a: np.ndarray, b: np.ndarray, threshold: float = 25, minArea: float = 0) -> np.ndarray:
     """Mask of the pixels that differ between two images, e.g. to spot changes between two frames or versions.
 
     Args:
@@ -80,8 +83,7 @@ def diffMask(a: np.ndarray, b: np.ndarray, threshold: float = 25, minArea: int =
     """
     _check_pair(a, b)
     check_finite("threshold", threshold, nonnegative=True)
-    if minArea < 0:
-        raise ValueError(f"minArea must not be negative, got {minArea}")
+    check_finite("minArea", minArea, nonnegative=True)
     difference = cv2.absdiff(a, b)
     if difference.ndim == 3:
         difference = difference.max(axis=2)
@@ -109,7 +111,8 @@ def imageHash(src: np.ndarray, hashSize: int = 8, method: str = "difference") ->
         The hash as a non-negative integer (e.g. ``format(h, "016x")`` for a 64-bit hex string).
 
     Raises:
-        ValueError: If ``hashSize`` is below 2 or ``method`` is unknown.
+        ValueError: If ``src`` is empty or has an unsupported channel count, ``hashSize`` is below 2, or ``method``
+            is unknown.
     """
     if hashSize < 2:
         raise ValueError(f"hashSize must be at least 2, got {hashSize}")

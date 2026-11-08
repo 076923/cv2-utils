@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "python-opencv-utils"
 dynamic = ["version"]
-description = "Drop-in cv2 replacement (import cv2u as cv) with extra OpenCV utilities: crop-free rotation, DBSCAN color clustering, Unicode text rendering, gradients and more"
+description = "Drop-in cv2 replacement (import cv2u as cv) with extra OpenCV utilities: video editing, data augmentation, COCO/YOLO annotations, ONNX inference, camera calibration, document scanning, image statistics, visualization, color clustering, Unicode paths and text, and more"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -90,6 +90,34 @@ keywords = [
     "histogram",
     "skeletonization",
     "background-removal",
+    "video-editing",
+    "video-writer",
+    "scene-detection",
+    "gif",
+    "data-augmentation",
+    "augmentation",
+    "mixup",
+    "cutmix",
+    "yolo",
+    "coco",
+    "rle",
+    "dnn",
+    "onnx",
+    "inference",
+    "object-detection",
+    "camera-calibration",
+    "undistort",
+    "stitching",
+    "panorama",
+    "ocr",
+    "deskew",
+    "heatmap",
+    "visualization",
+    "exif",
+    "image-metadata",
+    "image-statistics",
+    "css-colors",
+    "color-names",
     "numpy",
     "pillow",
     "utilities",
@@ -97,7 +125,7 @@ keywords = [
     "type-hints",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
@@ -133,7 +161,7 @@ opencv = ["opencv-python>=4.10.0.84"]
 headless = ["opencv-python-headless>=4.10.0.84"]
 contrib = ["opencv-contrib-python>=4.10.0.84"]
 contrib-headless = ["opencv-contrib-python-headless>=4.10.0.84"]
-# Needed only for meanShiftColors, DBSCAN and clusterPoints.
+# Needed only for meanShiftColors, dbscanColors and clusterPoints.
 cluster = ["scikit-learn>=1.4.2"]
 
 # Labels follow https://packaging.python.org/en/latest/specifications/well-known-project-urls/
