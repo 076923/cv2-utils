@@ -8,6 +8,7 @@
 <p align="center">
   <a href="https://pypi.org/project/python-opencv-utils/"><img src="https://img.shields.io/pypi/v/python-opencv-utils" alt="PyPI"></a>
   <a href="https://pypi.org/project/python-opencv-utils/"><img src="https://img.shields.io/pypi/pyversions/python-opencv-utils" alt="Python versions"></a>
+  <a href="https://pepy.tech/projects/python-opencv-utils"><img src="https://static.pepy.tech/personalized-badge/python-opencv-utils?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=BLUE&left_text=downloads" alt="Downloads"></a>
   <a href="https://github.com/076923/cv2-utils/actions/workflows/ci.yml"><img src="https://github.com/076923/cv2-utils/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://076923.github.io/cv2-utils/"><img src="https://img.shields.io/badge/docs-076923.github.io-blue" alt="Documentation"></a>
   <img src="https://img.shields.io/badge/typing-typed-brightgreen" alt="Typed">
