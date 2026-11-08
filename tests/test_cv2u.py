@@ -45,7 +45,9 @@ def test_cv2_passthrough():
     assert cv is not cv2
     assert cv.imread is cv2.imread
     assert cv.COLOR_BGR2GRAY == cv2.COLOR_BGR2GRAY
-    assert cv.dnn is cv2.dnn
+    assert cv.dnn is not cv2.dnn  # cv2u.dnn adds helpers and passes the rest through
+    assert cv.dnn.readNet is cv2.dnn.readNet
+    assert cv.dnn.DNN_BACKEND_OPENCV == cv2.dnn.DNN_BACKEND_OPENCV
     assert "imread" in dir(cv)
 
 
@@ -83,10 +85,10 @@ def test_extension_names_follow_opencv_style():
 
 def test_top_level_exports_every_submodule_name():
     # Principle: ``import cv2u as cv`` reaches every extension; nothing is reachable only from a submodule.
-    from cv2u import core, flag, highgui, imgcodecs, imgproc, videoio
+    from cv2u import calib3d, core, flag, highgui, imgcodecs, imgproc, videoio
 
     submodule_names = set()
-    for module in (core, flag, highgui, imgcodecs, imgproc, videoio):
+    for module in (calib3d, core, flag, highgui, imgcodecs, imgproc, videoio):
         submodule_names |= set(module.__all__)
     assert submodule_names == set(cv.__all__)
 
