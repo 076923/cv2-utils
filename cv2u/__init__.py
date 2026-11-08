@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from . import _cv2_exports
     from ._cv2_exports import *  # noqa: F403
 
-from . import dnn as dnn
+from . import dnn  # noqa: F401  (cv2u.dnn replaces cv2.dnn and passes its names through)
 from .calib3d import (
     CameraCalibration,
     calibrateCameraEx,

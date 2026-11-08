@@ -26,6 +26,9 @@ from pathlib import Path
 
 OUTPUT = Path(__file__).resolve().parent.parent / "cv2u" / "_cv2_exports.pyi"
 
+# OpenCV submodules that cv2u replaces with its own subpackage (which passes the OpenCV names through).
+REPLACED = {"dnn"}
+
 
 def _stub_path() -> Path:
     spec = importlib.util.find_spec("cv2")
@@ -56,7 +59,7 @@ def _public_names(tree: ast.Module) -> set[str]:
                 visit(node.orelse)
 
     visit(tree.body)
-    return {n for n in names if not n.startswith("_")}
+    return {n for n in names if not n.startswith("_") and n not in REPLACED}
 
 
 def render() -> str:
