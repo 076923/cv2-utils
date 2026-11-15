@@ -41,6 +41,20 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.core.layout.mapTiles
 
+### Performance
+
+::: cv2u.core.perf.Timer
+
+::: cv2u.core.perf.timed
+
+::: cv2u.core.perf.benchmarkFunction
+
+::: cv2u.core.perf.BenchmarkResult
+
+::: cv2u.core.perf.imageMemory
+
+::: cv2u.core.perf.formatBytes
+
 ### Regions
 
 ::: cv2u.core.roi.cropRect
@@ -221,6 +235,24 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 
 ::: cv2u.imgcodecs.meta.convertImageFormat
 
+### Batch processing
+
+::: cv2u.imgcodecs.batch.ImageSequence
+
+::: cv2u.imgcodecs.batch.imreadParallel
+
+::: cv2u.imgcodecs.batch.processImages
+
+::: cv2u.imgcodecs.batch.convertImages
+
+::: cv2u.imgcodecs.batch.imreadCached
+
+::: cv2u.imgcodecs.batch.clearImageCache
+
+::: cv2u.imgcodecs.batch.stackImages
+
+::: cv2u.imgcodecs.batch.unstackImages
+
 ## imgproc
 
 ### Color conversion
@@ -308,6 +340,66 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.imgproc.contour.boundingRects
 
 ::: cv2u.imgproc.contour.asContour
+
+### Segmentation and mask editing
+
+::: cv2u.imgproc.segment.grabCutEx
+
+::: cv2u.imgproc.segment.watershedEx
+
+::: cv2u.imgproc.segment.splitTouching
+
+::: cv2u.imgproc.segment.floodFillEx
+
+::: cv2u.imgproc.segment.connectedComponentsEx
+
+::: cv2u.imgproc.segment.Component
+
+::: cv2u.imgproc.segment.keepComponents
+
+::: cv2u.imgproc.segment.trimap
+
+::: cv2u.imgproc.segment.smoothMask
+
+::: cv2u.imgproc.segment.maskOutline
+
+::: cv2u.imgproc.segment.mergeMasks
+
+::: cv2u.imgproc.segment.maskHull
+
+::: cv2u.imgproc.segment.maskCoverage
+
+### Measurement and shape analysis
+
+::: cv2u.imgproc.measure.shapeDescriptors
+
+::: cv2u.imgproc.measure.ShapeDescriptors
+
+::: cv2u.imgproc.measure.feretDiameter
+
+::: cv2u.imgproc.measure.Feret
+
+::: cv2u.imgproc.measure.fitEllipseEx
+
+::: cv2u.imgproc.measure.Ellipse
+
+::: cv2u.imgproc.measure.huMomentsEx
+
+::: cv2u.imgproc.measure.matchShapesEx
+
+::: cv2u.imgproc.measure.contourDistance
+
+::: cv2u.imgproc.measure.contourCurvature
+
+::: cv2u.imgproc.measure.intensityProfile
+
+::: cv2u.imgproc.measure.radialProfile
+
+::: cv2u.imgproc.measure.PixelScale
+
+::: cv2u.imgproc.measure.measureLength
+
+::: cv2u.imgproc.measure.measureArea
 
 ### Matching and detection
 
@@ -594,6 +686,32 @@ The modules mirror OpenCV's modules (see [Design principles](principles.md)).
 ::: cv2u.videoio.edit.sampleFrames
 
 ::: cv2u.videoio.edit.videoThumbnail
+
+### Tracking and motion
+
+::: cv2u.videoio.motion.TrackerEx
+
+::: cv2u.videoio.motion.MultiTrackerEx
+
+::: cv2u.videoio.motion.frameDifference
+
+::: cv2u.videoio.motion.createBackgroundSubtractor
+
+::: cv2u.videoio.motion.backgroundMask
+
+::: cv2u.videoio.motion.denseFlow
+
+::: cv2u.videoio.motion.sparseFlow
+
+::: cv2u.videoio.motion.trackPoints
+
+::: cv2u.videoio.motion.flowMagnitude
+
+::: cv2u.videoio.motion.flowToColor
+
+::: cv2u.videoio.motion.drawFlow
+
+::: cv2u.videoio.motion.MotionAccumulator
 
 ## highgui
 
