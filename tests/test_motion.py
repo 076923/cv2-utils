@@ -94,6 +94,15 @@ def test_TrackerEx_lost(monkeypatch):
     monkeypatch.setattr(tracker, "_tracker", Lost())
     assert tracker.update(_frame(14)) is None
     assert tracker.lost and tracker.box is None
+    # After a loss, update keeps returning None instead of complaining that init was not called.
+    assert tracker.update(_frame(15)) is None and tracker.lost
+
+
+def test_gray8_scales_16bit_frames():
+    from cv2u.videoio.motion import _gray8
+
+    frame = np.full((4, 4), 65535 // 2, np.uint16)
+    assert int(_gray8(frame)[0, 0]) in (127, 128)  # scaled by the dtype range, not clipped to 255
 
 
 def test_MultiTrackerEx():

@@ -100,8 +100,10 @@ def test_timed_on_method():
         def value(self, k):
             return self.n * k
 
-    assert Box().value(2) == 6
-    assert isinstance(Box.value, object) and Box.value.lastElapsed >= 0.0
+    box = Box()
+    assert box.value(2) == 6
+    assert box.value.lastElapsed >= 0.0 and box.value.history == [box.value.lastElapsed]  # bound access too
+    assert box.value.__name__ == "value" and Box.value.lastElapsed >= 0.0
 
 
 # benchmarkFunction

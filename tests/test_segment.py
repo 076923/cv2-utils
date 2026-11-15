@@ -145,10 +145,19 @@ def test_watershedEx_user_markers(discs):
     markers[50, 40] = 7  # labels need not be consecutive
     markers[50, 90] = 3
     labels = watershedEx(img, markers, mask=discs)
-    assert labels.max() == 2 and labels[50, 40] != labels[50, 90]
+    assert set(np.unique(labels).tolist()) == {0, 3, 7}  # the caller's ids are kept
+    assert labels[50, 40] == 7 and labels[50, 90] == 3
     # Without a mask the whole image is foreground, so the background gets a label too.
     labels = watershedEx(img, markers)
-    assert labels.max() == 2 and (labels > 0).mean() > 0.9
+    assert {3, 7} <= set(np.unique(labels).tolist()) and (labels > 0).mean() > 0.9  # 0 only on the ridge
+
+
+def test_grabCutEx_binary_01_mask_is_foreground(scene):
+    rough = np.zeros((80, 80), np.uint8)
+    rough[15:65, 15:65] = 1  # 0/1, not 0/255: 1 is foreground here, not the GC_BGD scribble code
+    out = grabCutEx(scene, mask=rough)
+    assert (out[20:60, 20:60] == 255).all() and out[:15].sum() == 0
+    np.testing.assert_array_equal(out, grabCutEx(scene, mask=rough * 255))
 
 
 def test_watershedEx_empty_results():

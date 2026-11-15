@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from .._validate import check_channels, check_finite, check_image_not_empty
+from .mask import _foreground
 
 __all__ = [
     "Component",
@@ -25,16 +26,6 @@ __all__ = [
 ]
 
 MergeMode = Literal["union", "intersection", "difference"]
-
-
-def _foreground(mask: np.ndarray, name: str = "mask") -> np.ndarray:
-    """Nonzero pixels as a uint8 0/1 array (any channel count; for color images, any nonzero channel)."""
-    if mask.ndim not in (2, 3):
-        raise ValueError(f"{name} must be a 2-D array or an image, got shape {mask.shape}")
-    check_image_not_empty(name, mask)
-    if mask.ndim == 3:
-        return np.asarray((mask != 0).any(axis=2), dtype=np.uint8)
-    return np.asarray(mask != 0, dtype=np.uint8)
 
 
 def _check_connectivity(connectivity: int) -> None:
@@ -71,9 +62,9 @@ def grabCutEx(
     Args:
         src: 8-bit grayscale, BGR or BGRA image (converted to BGR for GrabCut).
         rect: ``(x, y, w, h)`` box around the object; everything outside is sure background.
-        mask: Rough mask of the shape ``src.shape[:2]``. ``0`` is probable background and ``255`` (any other
-            nonzero value except ``1`` and ``3``) is probable foreground; ``1`` means sure background and ``3``
-            sure foreground, as in ``cv.GC_BGD`` / ``cv.GC_FGD``, for a user's scribbles.
+        mask: Rough mask of the shape ``src.shape[:2]``. ``0`` is probable background and nonzero is probable
+            foreground (bool, 0/1 and 0/255 masks all work). A mask that also contains other values uses the
+            ``cv.GC_*`` codes for scribbles: ``1`` is sure background and ``3`` sure foreground.
         iterations: GrabCut iterations.
 
     Returns:
@@ -107,9 +98,9 @@ def grabCutEx(
         assert mask is not None
         if mask.ndim != 2 or mask.shape != (height, width):
             raise ValueError(f"mask must have the shape {(height, width)}, got {mask.shape}")
-        values = mask.astype(np.uint8) if mask.dtype == bool else np.asarray(mask)
+        values = np.asarray(mask)
         gc_mask = np.where(values != 0, cv2.GC_PR_FGD, cv2.GC_PR_BGD).astype(np.uint8)
-        if mask.dtype != bool:
+        if mask.dtype != bool and values.max() > 1:  # a 0/1 mask is binary; otherwise 1 and 3 are scribble codes
             gc_mask[values == 1] = cv2.GC_BGD
             gc_mask[values == 3] = cv2.GC_FGD
         if not (gc_mask == cv2.GC_PR_FGD).any() and not (gc_mask == cv2.GC_FGD).any():
@@ -140,8 +131,11 @@ def _distance_markers(fg: np.ndarray, minDistance: float, threshold: float) -> n
     return np.asarray(markers, dtype=np.int32)
 
 
-def _watershed_labels(bgr: np.ndarray, fg: np.ndarray, markers: np.ndarray) -> np.ndarray:
-    """Run ``cv.watershed`` with ``markers`` (0 = unknown) and clean the result into a label map."""
+def _watershed_labels(bgr: np.ndarray, fg: np.ndarray, markers: np.ndarray, *, relabel: bool) -> np.ndarray:
+    """Run ``cv.watershed`` with ``markers`` (0 = unknown) and clean the result into a label map.
+
+    With ``relabel`` the surviving labels are renumbered ``1..N`` without gaps; otherwise the marker ids are kept.
+    """
     count = int(markers.max())
     if count == 0:
         return np.zeros(fg.shape, np.int32)
@@ -163,6 +157,8 @@ def _watershed_labels(bgr: np.ndarray, fg: np.ndarray, markers: np.ndarray) -> n
     ws[single] = hi[single].astype(np.int32)
     ws[ws == -1] = 0
     labels: np.ndarray = ws.astype(np.int32)
+    if not relabel:
+        return labels
     # Relabel 1..N without gaps (a marker may vanish when a watershed basin swallows it).
     present = np.unique(labels)
     present = present[present > 0]
@@ -202,7 +198,8 @@ def watershedEx(
         threshold: Fraction of the distance-transform peak above which pixels become seeds (automatic markers).
 
     Returns:
-        ``int32`` label map with the shape ``src.shape[:2]``: ``0`` background, ``1..N`` objects.
+        ``int32`` label map with the shape ``src.shape[:2]``: ``0`` background, ``1..N`` objects. With your own
+        ``markers`` the marker ids are kept as they are (a basin that is flooded by a neighbour disappears).
 
     Raises:
         ValueError: If ``src`` is not 8-bit or is empty, shapes do not match, ``minDistance`` is negative, or
@@ -232,7 +229,7 @@ def watershedEx(
         if not np.issubdtype(markers.dtype, np.integer):
             raise ValueError(f"markers must be an integer label image, got dtype {markers.dtype}")
         seeds = np.maximum(markers.astype(np.int32), 0)
-    labels = _watershed_labels(bgr, fg, seeds)
+    labels = _watershed_labels(bgr, fg, seeds, relabel=markers is None)
     return _labelUnseeded(fg, labels) if markers is None else labels
 
 
@@ -378,7 +375,7 @@ def floodFillEx(
     flags = connectivity | cv2.FLOODFILL_MASK_ONLY | (255 << 8)
     if fixedRange:
         flags |= cv2.FLOODFILL_FIXED_RANGE
-    cv2.floodFill(image.copy(), fill_mask, (x, y), 0, tuple(diffs), tuple(diffs), flags)
+    cv2.floodFill(image, fill_mask, (x, y), 0, tuple(diffs), tuple(diffs), flags)  # MASK_ONLY: image untouched
     return np.ascontiguousarray(fill_mask[1:-1, 1:-1])
 
 
@@ -433,7 +430,9 @@ def connectedComponentsEx(mask: np.ndarray, *, connectivity: int = 8, minArea: i
             int(stats[label, cv2.CC_STAT_HEIGHT]),
         )
         centroid = (float(centroids[label, 0]), float(centroids[label, 1]))
-        component_mask = np.asarray(labels == label, dtype=np.uint8) * 255
+        x, y, w, h = box
+        component_mask = np.zeros(labels.shape, np.uint8)  # compare inside the box only, not the whole image
+        component_mask[y : y + h, x : x + w] = (labels[y : y + h, x : x + w] == label) * np.uint8(255)
         components.append(Component(label, area, box, centroid, component_mask))
     components.sort(key=lambda c: (-c.area, c.label))
     return components

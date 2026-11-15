@@ -8,7 +8,15 @@ from typing import Any
 import cv2
 import numpy as np
 
-from .._validate import as_color, check_channels, check_color, check_finite, check_image_not_empty, check_uint8
+from .._validate import (
+    as_color,
+    check_channels,
+    check_color,
+    check_finite,
+    check_image_not_empty,
+    check_uint8,
+    to_uint8,
+)
 from ..imgproc.color import toGray
 
 __all__ = [
@@ -50,12 +58,7 @@ def _check_pair(prev: np.ndarray, next: np.ndarray) -> tuple[np.ndarray, np.ndar
 
 
 def _gray8(frame: np.ndarray) -> np.ndarray:
-    gray = toGray(frame)
-    if gray.dtype != np.uint8:
-        gray = (
-            cv2.convertScaleAbs(gray) if np.issubdtype(gray.dtype, np.integer) else cv2.convertScaleAbs(gray, alpha=255)
-        )
-    return gray
+    return to_uint8(toGray(frame))
 
 
 def _check_box(name: str, box: Sequence[float]) -> Box:
@@ -124,6 +127,7 @@ class TrackerEx:
         self._tracker = _create_tracker(name, params)
         self._box: Box | None = None
         self._lost = True
+        self._initialized = False
 
     @property
     def box(self) -> Box | None:
@@ -146,6 +150,7 @@ class TrackerEx:
         self._tracker = _create_tracker(self.name, self._params)
         self._tracker.init(frame, self._box)
         self._lost = False
+        self._initialized = True
 
     def update(self, frame: np.ndarray) -> Box | None:
         """Track into the next frame and return the new box, or ``None`` when the target is lost.
@@ -153,7 +158,7 @@ class TrackerEx:
         Raises:
             RuntimeError: If called before :meth:`init`.
         """
-        if self._box is None:
+        if not self._initialized:
             raise RuntimeError("TrackerEx.init must be called before update")
         check_uint8("frame", frame)
         ok, box = self._tracker.update(frame)

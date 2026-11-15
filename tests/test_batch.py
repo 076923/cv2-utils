@@ -117,6 +117,38 @@ def test_process_images_returns_results(folder):
         processImages(paths, lambda img, path: img, workers=0)
 
 
+def test_process_images_rejects_colliding_output_names(folder, tmp_path):
+    other = tmp_path / "other"
+    other.mkdir()
+    cv2.imwrite(str(other / "img1.png"), _image(5))
+    with pytest.raises(ValueError, match="same output file"):
+        processImages([folder / "img1.png", other / "img1.png"], lambda img, path: img, outDir=tmp_path / "out")
+    with pytest.raises(ValueError, match="same output file"):
+        convertImages([folder / "img1.png", other / "img1.png"], tmp_path / "out", "jpg")
+
+
+def test_convert_images_resize_keeps_orientation_and_flattens_alpha(tmp_path):
+    from PIL import Image
+
+    src = tmp_path / "src"
+    src.mkdir()
+    # A 6x4 image with EXIF orientation 6 (rotate 90 CW) and a transparent PNG.
+    pil = Image.new("RGB", (6, 4), (255, 0, 0))
+    exif = pil.getexif()
+    exif[0x0112] = 6
+    pil.save(src / "rotated.jpg", exif=exif.tobytes())
+    rgba = np.zeros((4, 6, 4), np.uint8)
+    rgba[..., 3] = 0  # fully transparent: flattened on white
+    cv2.imwrite(str(src / "alpha.png"), rgba)
+    out = tmp_path / "out"
+    written = convertImages(src, out, "jpg", size=(8, 12))
+    assert sorted(p.name for p in written) == ["alpha.jpg", "rotated.jpg"]
+    rotated = cv2.imread(str(out / "rotated.jpg"))
+    assert rotated.shape[:2] == (12, 8)  # orientation applied before the resize
+    assert cv2.imread(str(out / "alpha.jpg")).min() > 200  # transparent pixels became white
+    assert not list(out.glob("*tmp*"))
+
+
 def test_process_images_writes_outputs(folder, tmp_path):
     out = tmp_path / "out" / "nested"
     paths = [folder / "img1.png", folder / "img2.png", folder / "missing.png"]

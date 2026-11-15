@@ -389,8 +389,9 @@ def intensityProfile(src: np.ndarray, p1: ArrayLike, p2: ArrayLike, *, width: in
     """Pixel values sampled along the line from ``p1`` to ``p2``, with bilinear interpolation.
 
     The line profile is the first tool for measuring an edge, a stripe or a ruler. OpenCV's ``cv.LineIterator``
-    is not exposed to Python, so this samples through ``cv.remap``; ``width > 1`` averages that many parallel
-    lines, which reduces noise the way ImageJ's "line width" does.
+    is not exposed to Python and ``cv.remap`` interpolates in 1/32-pixel steps on OpenCV 4, so this samples with
+    exact bilinear weights; ``width > 1`` averages that many parallel lines, which reduces noise the way ImageJ's
+    "line width" does.
 
     Args:
         src: Grayscale, BGR or BGRA image of any dtype.
@@ -421,12 +422,28 @@ def intensityProfile(src: np.ndarray, p1: ArrayLike, p2: ArrayLike, *, width: in
     else:
         nx, ny = 0.0, 1.0
     offsets = np.arange(width, dtype=np.float64) - (width - 1) / 2
-    map_x = (xs[None, :] + offsets[:, None] * nx).astype(np.float32)
-    map_y = (ys[None, :] + offsets[:, None] * ny).astype(np.float32)
-    image = src.astype(np.float32)
-    sampled = cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-    out: np.ndarray = sampled.reshape(width, samples, -1).mean(axis=0, dtype=np.float32)
+    map_x = xs[None, :] + offsets[:, None] * nx
+    map_y = ys[None, :] + offsets[:, None] * ny
+    sampled = _bilinear(src.reshape(src.shape[0], src.shape[1], -1), map_x, map_y)
+    out: np.ndarray = sampled.mean(axis=0, dtype=np.float64).astype(np.float32)
     return out[:, 0] if src.ndim == 2 else out
+
+
+def _bilinear(image: np.ndarray, map_x: np.ndarray, map_y: np.ndarray) -> np.ndarray:
+    """Bilinear samples of an ``(H, W, C)`` image at float coordinates, replicating the border outside."""
+    height, width = image.shape[:2]
+    x0 = np.floor(map_x)
+    y0 = np.floor(map_y)
+    fx = (map_x - x0)[..., None]
+    fy = (map_y - y0)[..., None]
+    xa = np.clip(x0.astype(np.int64), 0, width - 1)
+    xb = np.clip(x0.astype(np.int64) + 1, 0, width - 1)
+    ya = np.clip(y0.astype(np.int64), 0, height - 1)
+    yb = np.clip(y0.astype(np.int64) + 1, 0, height - 1)
+    values = image.astype(np.float64)
+    top = values[ya, xa] * (1 - fx) + values[ya, xb] * fx
+    bottom = values[yb, xa] * (1 - fx) + values[yb, xb] * fx
+    return np.asarray(top * (1 - fy) + bottom * fy)
 
 
 def radialProfile(src: np.ndarray, center: ArrayLike | None = None, *, maxRadius: int | None = None) -> np.ndarray:

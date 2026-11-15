@@ -14,7 +14,7 @@ import numpy as np
 
 from .._validate import check_image_not_empty, check_size
 from .files import _IMAGE_EXTENSIONS, _natural_key, imreadEx, imwriteEx
-from .meta import convertImageFormat
+from .meta import _prepare_for_format, convertImageFormat, imreadOriented
 
 __all__ = [
     "ImageSequence",
@@ -201,10 +201,14 @@ def processImages(
     if out is not None:
         out.mkdir(parents=True, exist_ok=True)
 
+    def target_of(path: Path) -> Path:
+        assert out is not None
+        return out / (path.stem + (suffix or path.suffix))
+
     def work(path: Path) -> T | None:
         target = None
         if out is not None:
-            target = out / (path.stem + (suffix or path.suffix))
+            target = target_of(path)
             if skipExisting and target.exists():
                 return None
         image = imreadEx(path, flags)
@@ -217,8 +221,19 @@ def processImages(
 
     if not paths:
         return []
+    if out is not None:
+        _check_unique_targets([target_of(p) for p in paths])
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return list(pool.map(work, paths))
+
+
+def _check_unique_targets(targets: Sequence[Path]) -> None:
+    """Two inputs with the same file name in different folders would overwrite each other's output."""
+    seen: set[Path] = set()
+    for target in targets:
+        if target in seen:
+            raise ValueError(f"two input files map to the same output file: {str(target)!r}")
+        seen.add(target)
 
 
 def convertImages(
@@ -279,18 +294,18 @@ def convertImages(
         if size is None:
             ok = convertImageFormat(path, target, quality, makeDirs=True)
         else:
-            image = imreadEx(path, cv2.IMREAD_UNCHANGED)
+            image = imreadOriented(path, cv2.IMREAD_UNCHANGED)
             if image is None:
                 return None
             interpolation = cv2.INTER_AREA if size[0] * size[1] < image.shape[0] * image.shape[1] else cv2.INTER_LINEAR
             resized = cv2.resize(image, size, interpolation=interpolation)
-            tmp = target.with_name(target.stem + "__cv2u_tmp" + path.suffix)
-            ok = imwriteEx(tmp, resized, makeDirs=True) and convertImageFormat(tmp, target, quality)
-            tmp.unlink(missing_ok=True)
+            prepared, params = _prepare_for_format(resized, suffix, quality, (255, 255, 255))
+            ok = imwriteEx(target, prepared, params, makeDirs=True)
         return target if ok else None
 
     if not paths:
         return []
+    _check_unique_targets([target_of(p) for p in paths])
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return [t for t in pool.map(work, paths) if t is not None]
 

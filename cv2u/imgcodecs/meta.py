@@ -341,6 +341,14 @@ def convertImageFormat(
     img = imreadOriented(src, cv2.IMREAD_UNCHANGED)
     if img is None:
         return False
+    img, params = _prepare_for_format(img, ext, quality, background)
+    return imwriteEx(dst, img, params, makeDirs)
+
+
+def _prepare_for_format(
+    img: np.ndarray, ext: str, quality: int | None, background: float | Sequence[float]
+) -> tuple[np.ndarray, list[int]]:
+    """Flatten alpha and scale the depth for formats that cannot store them; the ``imwrite`` params for ``quality``."""
     if img.ndim == 3 and img.shape[2] == 4 and ext not in _ALPHA_FORMATS:
         img = flattenAlpha(img, background)
     keeps_depth = ext in _FLOAT_FORMATS if np.issubdtype(img.dtype, np.floating) else ext in _UINT16_FORMATS
@@ -349,4 +357,4 @@ def convertImageFormat(
     params: list[int] = []
     if quality is not None and ext in _QUALITY_FLAGS:
         params = [_QUALITY_FLAGS[ext], int(quality)]
-    return imwriteEx(dst, img, params, makeDirs)
+    return img, params

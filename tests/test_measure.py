@@ -340,6 +340,13 @@ def test_intensityProfile_horizontal_ramp(ramp):
     np.testing.assert_allclose(profile, np.arange(100))
 
 
+def test_intensityProfile_replicates_the_border(ramp):
+    outside = intensityProfile(ramp, (-3, 5), (-1, 5))
+    np.testing.assert_allclose(outside, [0, 0, 0])
+    beyond = intensityProfile(ramp, (ramp.shape[1] + 2, 5), (ramp.shape[1] + 4, 5))
+    np.testing.assert_allclose(beyond, [ramp.shape[1] - 1] * 3)
+
+
 def test_intensityProfile_subpixel_and_diagonal(ramp):
     profile = intensityProfile(ramp, (10.5, 5), (20.5, 5))
     np.testing.assert_allclose(profile, np.arange(10.5, 21, 1.0), atol=1e-4)

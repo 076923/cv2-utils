@@ -2,6 +2,7 @@
 
 import statistics
 import sys
+import types
 from collections.abc import Callable, Sequence
 from functools import wraps
 from time import perf_counter
@@ -138,7 +139,7 @@ class _Timed:
     def __get__(self, instance: object, owner: type | None = None) -> Any:
         if instance is None:
             return self
-        return lambda *a, **k: self(instance, *a, **k)
+        return types.MethodType(self, instance)
 
 
 @overload

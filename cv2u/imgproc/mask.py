@@ -19,11 +19,11 @@ __all__ = [
 ]
 
 
-def _foreground(mask: np.ndarray) -> np.ndarray:
+def _foreground(mask: np.ndarray, name: str = "mask") -> np.ndarray:
     """Nonzero pixels as a uint8 0/1 array (any channel count; for color images, any nonzero channel)."""
     if mask.ndim not in (2, 3):
-        raise ValueError(f"mask must be a 2-D array or an image, got shape {mask.shape}")
-    check_image_not_empty("mask", mask)
+        raise ValueError(f"{name} must be a 2-D array or an image, got shape {mask.shape}")
+    check_image_not_empty(name, mask)
     if mask.ndim == 3:
         return np.asarray((mask != 0).any(axis=2), dtype=np.uint8)
     return np.asarray(mask != 0, dtype=np.uint8)
