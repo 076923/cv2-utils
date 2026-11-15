@@ -37,6 +37,14 @@ from .extension import boldEdges, cartesianToPolar, centerPoint, gammaCorrection
 from .images import imcolor, imcolorLike, makeGradient
 from .layout import mapTiles, mergeTiles, padToMultiple, padToSize, splitTiles
 from .peaks import peakColors
+from .perf import (
+    BenchmarkResult,
+    Timer,
+    benchmarkFunction,
+    formatBytes,
+    imageMemory,
+    timed,
+)
 from .points import (
     angleBetween,
     clipPoints,
@@ -58,8 +66,11 @@ from .roi import cropCenter, cropRect, cropToContent, inRangeEx
 from .rotate import rotateEx
 
 __all__ = [
+    "BenchmarkResult",
     "Clusters",
+    "Timer",
     "angleBetween",
+    "benchmarkFunction",
     "boldEdges",
     "boxIoU",
     "boxesToPolygons",
@@ -85,8 +96,10 @@ __all__ = [
     "flipBoxes",
     "flipPoints",
     "flipPolygons",
+    "formatBytes",
     "gammaCorrection",
     "hconcatEx",
+    "imageMemory",
     "imcolor",
     "imcolorLike",
     "inRangeEx",
@@ -127,6 +140,7 @@ __all__ = [
     "scaleBoxes",
     "scalePoints",
     "splitTiles",
+    "timed",
     "translatePoints",
     "vconcatEx",
     "writeYoloLabels",
