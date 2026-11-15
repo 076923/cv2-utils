@@ -165,9 +165,9 @@ jobs:
             variant: lowest
             extras: "headless,cluster"
             pin: "opencv-python-headless==4.10.0.84 numpy==2.0.* pillow==10.1.* scikit-learn==1.4.2"
-          # Next Python (pre-release), core features only: scipy (via the [cluster] extra) cannot be built from
-          # source on the runner, and NumPy/Pillow may have no wheels yet, so they are built. Failures do not block.
-          - { os: ubuntu-latest, python-version: "3.16", variant: no-cluster, extras: opencv, experimental: true }
+          # The next Python (pre-release) can be added back once NumPy and Pillow ship wheels for it, e.g.
+          # { os: ubuntu-latest, python-version: "3.16", variant: no-cluster, extras: opencv, experimental: true }
+          # (experimental: failures do not block, and the build dependencies step below runs).
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
