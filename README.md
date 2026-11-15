@@ -202,6 +202,42 @@ cv.videoToGif("input.mp4", "preview.gif", fps=10, size=(320, 180), maxFrames=50)
 cv.imwrite("sheet.jpg", cv.videoThumbnail("input.mp4", count=6, cols=3))  # contact sheet
 ```
 
+### Tracking, segmentation and measurement
+
+```python
+import cv2u as cv
+
+tracker = cv.TrackerEx("MIL")
+with cv.VideoReader("input.mp4") as video:
+    first = next(iter(video))
+    tracker.init(first, (120, 80, 64, 64))
+    for frame in video:
+        box = tracker.update(frame)  # (x, y, w, h), or None when the target is lost
+        if box is not None:
+            cv.drawBoxes(frame, [box])
+
+subtractor = cv.createBackgroundSubtractor("MOG2")
+moving = cv.backgroundMask(subtractor, frame, minArea=50)  # shadows and speckles removed
+flow = cv.denseFlow(first, frame)
+cv.imwrite("flow.png", cv.flowToColor(flow))
+
+labels = cv.splitTouching(mask, minDistance=10)  # touching blobs -> 1..N
+for part in cv.connectedComponentsEx(mask, minArea=100):  # Component(label, area, box, centroid, mask)
+    print(part.area, part.centroid)
+cutout = cv.grabCutEx(img, rect=(50, 40, 200, 160))  # 0/255 mask from a rough box
+
+scale = cv.PixelScale.fromReference(pixelLength=312, realLength=25.0, unit="mm")
+for contour in cv.findContoursEx(mask):
+    shape = cv.shapeDescriptors(contour)  # circularity, solidity, eccentricity, ...
+    print(cv.measureArea(contour, scale), cv.feretDiameter(contour).max)
+
+images = cv.ImageSequence("frames/*.png")  # natural order, decoded lazily, sliceable
+batch = cv.stackImages(images[:16], size=(224, 224))  # (16, 224, 224, 3)
+with cv.Timer() as t:
+    results = cv.imreadParallel(images.paths)
+print(t)
+```
+
 ### Documents and quality
 
 ```python
@@ -392,6 +428,8 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `labelMapToColor(labels, palette=None, background=0)`, `colorToLabelMap(image, palette, background=0)` | Paint a class-id map with distinct colors and recover it from the painted image. |
 | `instanceMasksToLabelMap(masks)`, `labelMapToMasks(labels, background=0)` | Instance masks to one label map (later masks on top) and back. |
 | `drawPolygons(src, polygons, color=None, thickness=2, fill=False, alpha=1.0, labels=None)`, `drawSegmentation(src, labels, alpha=0.5, palette=None)` | Polygons in their own colors with labels; a label map blended over the image. Both return a new image. |
+| `Timer(name=None, verbose=False)`, `timed(fn, repeats=1)`, `benchmarkFunction(fn, *args, repeats=10, warmup=1)` | A lap timer (context manager), a timing decorator and a micro-benchmark returning `BenchmarkResult(mean, median, min, max, std, repeats)`. |
+| `imageMemory(src_or_shape, dtype=np.uint8)`, `formatBytes(n)` | Bytes an image occupies; `"1.2 MB"`. |
 
 ### imgcodecs
 
@@ -409,6 +447,10 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `imreadResized(filename, size=None, scale=None, width=None, height=None, flags=cv.IMREAD_COLOR)` | Read and resize in one step; 1/2, 1/4 and 1/8 scales decode reduced for speed. |
 | `imencodeEx(ext, img, params=())`, `imdecodeEx(data, flags=cv.IMREAD_COLOR)` | Encode to `bytes` (errors raise) and decode any bytes-like object. |
 | `convertImageFormat(src, dst, quality=None, background=(255, 255, 255), makeDirs=False)` | Convert a file between formats; alpha is flattened for JPEG and the EXIF orientation applied. |
+| `ImageSequence(source, flags=cv.IMREAD_COLOR, cache=0)` | A folder, glob or path list that indexes, slices and iterates like a list of images, in natural order, decoded lazily. |
+| `imreadParallel(paths, workers=None)`, `processImages(paths, fn, outDir=None, ext=None, skipExisting=False)`, `convertImages(source, outDir, ext, size=None, recursive=False)` | Threaded reading, read/process/write loops over folders and batch format conversion. |
+| `imreadCached(filename, flags=cv.IMREAD_COLOR)`, `clearImageCache()` | `imreadEx` through a process-wide cache keyed by path, flags and mtime (returns copies). |
+| `stackImages(images, size=None, pad=False)`, `unstackImages(batch)` | `(N, H, W[, C])` batches from images of different sizes, and back. |
 
 ### imgproc
 
@@ -487,6 +529,14 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `CSS_COLORS`, `colorName(color)`, `nearestColor(color, palette, space="lab")`, `colorDistance(a, b, space="lab")` | The CSS color names as BGR; the closest name or palette index; distance between two colors. |
 | `lightenColor(color, amount)`, `darkenColor(color, amount)`, `blendColors(a, b, t=0.5)`, `complementaryColor(color)`, `invertColor(color)`, `textColorFor(background)` | Arithmetic on one BGR color; black or white text for a background. |
 | `randomColors(count, seed=None, saturation=1.0, value=1.0)`, `gradientPalette(start, end, count)`, `colormapPalette(colormap, count)` | Palettes: random, between two colors, or sampled from an OpenCV colormap (e.g. `cv.COLORMAP_VIRIDIS`). |
+| `grabCutEx(src, rect=None, mask=None, iterations=5)`, `floodFillEx(src, seed, tolerance=0)` | GrabCut from a rect or a rough mask straight to a 0/255 mask; the flood-fill region as a mask, `src` untouched. |
+| `watershedEx(src, markers=None, mask=None, minDistance=0, threshold=0.5)`, `splitTouching(mask, minDistance=0, threshold=0.5)` | Watershed with automatic distance-transform markers (label map: background 0, objects 1..N); split touching blobs of a plain mask. |
+| `connectedComponentsEx(mask, connectivity=8, minArea=0)`, `keepComponents(mask, minArea=None, maxArea=None, keepTop=None)` | Regions as `Component(label, area, box, centroid, mask)` largest first; keep regions by size or top-N. |
+| `trimap(mask, width)`, `smoothMask(mask, radius)`, `maskOutline(mask, thickness=1, inside=False)`, `mergeMasks(masks, mode="union")`, `maskHull(mask)`, `maskCoverage(mask, roi=None)` | Matting trimaps, edge smoothing, boundary bands, union/intersection/difference, filled convex hull, foreground fraction. |
+| `shapeDescriptors(contour)`, `feretDiameter(contour)`, `fitEllipseEx(contour)` | Circularity, solidity, convexity, eccentricity, orientation, compactness, ...; min/max caliper diameters with directions; `cv.fitEllipse` with a fixed `(major, minor)` convention. |
+| `huMomentsEx(src, log=True)`, `matchShapesEx(a, b, method=cv.CONTOURS_MATCH_I1)`, `contourDistance(a, b)`, `contourCurvature(contour, step=3)` | Flat log-scaled Hu moments of a contour or mask; shape matching for contours and masks; gap between two contours (0 when they overlap); signed curvature per point. |
+| `intensityProfile(src, p1, p2, width=1)`, `radialProfile(src, center=None, maxRadius=None)` | Sub-pixel pixel values along a line; mean intensity per radius. |
+| `PixelScale.fromReference(pixelLength, realLength, unit="mm")`, `measureLength(p1, p2, scale)`, `measureArea(contour, scale)` | Pixels to real-world units from a known reference. |
 
 ### videoio
 
@@ -506,6 +556,11 @@ Full reference with parameters and exceptions: <https://076923.github.io/cv2-uti
 | `videoToGif(source, dst, fps=None, size=None, step=1, maxFrames=None, loop=0)`, `imagesToVideo(images, dst, fps=30, fourcc=None)` | Animated GIF from a video (OpenCV cannot write GIFs); time-lapse from image files or arrays. |
 | `detectScenes(source, threshold=30.0, minLength=15, step=1)` | Frame indices where a new shot starts. |
 | `sampleFrames(source, count)`, `videoThumbnail(source, count=4, size=None, cols=None, gap=0)` | Evenly spaced frames; a contact sheet of them. |
+| `TrackerEx(name="MIL", **params)`, `MultiTrackerEx(name="MIL")` | `cv.Tracker*` by name with `init`/`update` (box or `None` when lost) and `track(frames)`; several targets with stable ids. |
+| `frameDifference(prev, next, threshold=25, blur=0)`, `createBackgroundSubtractor(method="MOG2", history=500)`, `backgroundMask(subtractor, frame, shadows=False, minArea=0)` | Motion masks from frame differencing and MOG2/KNN subtraction, shadows and speckles removed. |
+| `denseFlow(prev, next, method="farneback")`, `sparseFlow(prev, next, points)`, `trackPoints(frames, points)` | `(H, W, 2)` dense flow; Lucas-Kanade on `(N, 2)` points with a bool status; a generator that follows points through frames. |
+| `flowMagnitude(flow)`, `flowToColor(flow, maxMagnitude=None)`, `drawFlow(src, flow, step=16)` | Magnitude and angle, HSV flow picture, arrow grid (in place). |
+| `MotionAccumulator(shape, decay=0.95)` | `update(mask)` and `heatmap()`: where motion happened recently, as a `0..1` map. |
 
 ### calib3d
 

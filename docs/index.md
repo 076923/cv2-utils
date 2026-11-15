@@ -156,6 +156,42 @@ cv.videoToGif("input.mp4", "preview.gif", fps=10, size=(320, 180), maxFrames=50)
 cv.imwrite("sheet.jpg", cv.videoThumbnail("input.mp4", count=6, cols=3))  # contact sheet
 ```
 
+### Tracking, segmentation and measurement
+
+```python
+import cv2u as cv
+
+tracker = cv.TrackerEx("MIL")
+with cv.VideoReader("input.mp4") as video:
+    first = next(iter(video))
+    tracker.init(first, (120, 80, 64, 64))
+    for frame in video:
+        box = tracker.update(frame)  # (x, y, w, h), or None when the target is lost
+        if box is not None:
+            cv.drawBoxes(frame, [box])
+
+subtractor = cv.createBackgroundSubtractor("MOG2")
+moving = cv.backgroundMask(subtractor, frame, minArea=50)  # shadows and speckles removed
+flow = cv.denseFlow(first, frame)
+cv.imwrite("flow.png", cv.flowToColor(flow))
+
+labels = cv.splitTouching(mask, minDistance=10)  # touching blobs -> 1..N
+for part in cv.connectedComponentsEx(mask, minArea=100):  # Component(label, area, box, centroid, mask)
+    print(part.area, part.centroid)
+cutout = cv.grabCutEx(img, rect=(50, 40, 200, 160))  # 0/255 mask from a rough box
+
+scale = cv.PixelScale.fromReference(pixelLength=312, realLength=25.0, unit="mm")
+for contour in cv.findContoursEx(mask):
+    shape = cv.shapeDescriptors(contour)  # circularity, solidity, eccentricity, ...
+    print(cv.measureArea(contour, scale), cv.feretDiameter(contour).max)
+
+images = cv.ImageSequence("frames/*.png")  # natural order, decoded lazily, sliceable
+batch = cv.stackImages(images[:16], size=(224, 224))  # (16, 224, 224, 3)
+with cv.Timer() as t:
+    results = cv.imreadParallel(images.paths)
+print(t)
+```
+
 ### Documents and quality
 
 ```python

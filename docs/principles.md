@@ -46,6 +46,14 @@ Never re-implement something OpenCV already does well.
 | `adjustBrightnessContrast`, `adjustHSV`, `autoContrast` | `cv.convertScaleAbs` scales around 0 and takes absolute values; HSV edits need the hue/2 convention and wrap-around; `cv.normalize` is defeated by a single outlier. |
 | `sharpnessScore`, `diffMask` | Blur detection and change detection are a few lines everyone rewrites. |
 | `translate`, `padToMultiple`, `padToSize`, `splitTiles`, `mergeTiles` | Shifting, padding and tiling all need `warpAffine`/`copyMakeBorder` arithmetic. |
+| `TrackerEx`, `MultiTrackerEx` | Tracker factories are named differently per OpenCV version and build (`TrackerKCF_create` vs `TrackerKCF.create`, CSRT/KCF contrib-only) and return `(ok, floatBox)`; `cv.legacy.MultiTracker` has no ids and cannot drop a target. |
+| `backgroundMask`, `sparseFlow`, `flowToColor` | `BackgroundSubtractor.apply` returns shadows as 127 and speckles; `cv.calcOpticalFlowPyrLK` wants `(N, 1, 2)` float32 points and gives `(N, 1)` uint8 status; the HSV flow picture is a `cartToPolar`/hue-scaling snippet everyone rewrites. |
+| `grabCutEx`, `watershedEx`, `floodFillEx` | `cv.grabCut` needs two `(1, 65)` model arrays and `GC_*` codes; `cv.watershed` wants hand-built `int32` markers and returns `-1` ridges; `cv.floodFill` paints into the image and needs a mask 2 px larger than it. |
+| `connectedComponentsEx`, `keepComponents` | `cv.connectedComponentsWithStats` returns four parallel arrays indexed by `CC_STAT_*` constants with the background in row 0. |
+| `shapeDescriptors`, `feretDiameter`, `contourDistance` | Convexity, eccentricity and Feret (caliper) diameters need `convexHull`, moment eigenvalues and rotating calipers by hand; `cv.pointPolygonTest` measures one point against one contour, not the gap between two shapes. |
+| `intensityProfile`, `PixelScale` | `cv.LineIterator` is not exposed to Python and has no sub-pixel sampling; every measurement is in pixels. |
+| `ImageSequence`, `imreadParallel`, `imreadCached` | `cv.VideoCapture` reads image sequences only in order and sorts `img10` before `img2`; thread pools and decoded-image caches are rewritten per project. |
+| `Timer`, `benchmarkFunction` | `cv.getTickCount() / cv.getTickFrequency()` has no laps, warm-up or statistics. |
 | `drawDashedLine`, `drawDashedRectangle`, `drawHistogram` | OpenCV draws only solid lines, and `cv.calcHist` only returns numbers. |
 | `largestComponent`, `cutout` | Keeping the main object and cutting it out with transparency take component and alpha bookkeeping. |
 | `transformPoints` | `cv.transform` and `cv.perspectiveTransform` need `(N, 1, 2)` float arrays and a different function per matrix type. |

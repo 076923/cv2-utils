@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-15
+
+54 new APIs (297 -> 351) in four areas: tracking and motion, segmentation and mask editing, measurement and shape
+analysis, and batch processing / performance helpers. No breaking changes.
+
+### Added
+
+- `TrackerEx` and `MultiTrackerEx` (`videoio`): `cv.Tracker*` chosen by name across OpenCV 4/5 and contrib builds, with int boxes, a `lost` state, a `track(frames)` generator and multi-target tracking with stable ids.
+- `frameDifference`, `createBackgroundSubtractor`, `backgroundMask`: motion masks from frame differencing and MOG2/KNN background subtraction, with shadow removal and small-blob filtering.
+- `denseFlow`, `sparseFlow`, `trackPoints`, `flowMagnitude`, `flowToColor`, `drawFlow`: Farneback/DIS dense flow, Lucas-Kanade point tracking with flat `(N, 2)` points and bool status, HSV flow visualization and arrow grids.
+- `MotionAccumulator`: decaying accumulation of motion masks into a `0..1` heat map.
+- `grabCutEx`, `watershedEx`, `splitTouching`, `floodFillEx` (`imgproc`): GrabCut from a rect or a rough mask straight to a 0/255 mask, watershed with automatic distance-transform markers and a clean label map, a mask-only split of touching blobs, and the flood-fill region as a mask without touching the image.
+- `connectedComponentsEx`/`Component` and `keepComponents`: connected regions as a sorted list of named tuples (label, area, box, centroid, mask) and one-call filtering by area range or top-N.
+- `trimap`, `smoothMask`, `maskOutline`, `mergeMasks`, `maskHull`, `maskCoverage`: matting trimaps, edge smoothing, boundary bands, set operations on masks, filled convex hulls and foreground fractions.
+- `shapeDescriptors`/`ShapeDescriptors`, `feretDiameter`/`Feret`, `fitEllipseEx`/`Ellipse`: dimensionless shape descriptors (circularity, solidity, convexity, eccentricity, orientation, compactness), min/max Feret caliper diameters with directions, and `cv.fitEllipse` with validation and a fixed `(major, minor)` convention.
+- `huMomentsEx`, `matchShapesEx`, `contourDistance`, `contourCurvature`: log-scaled Hu moments of a contour or mask, `cv.matchShapes` for contours and masks alike, the minimum gap between two contours and signed per-point curvature.
+- `intensityProfile`, `radialProfile`, `PixelScale`, `measureLength`, `measureArea`: sub-pixel line profiles, azimuthal radial profiles, and pixel to real-world unit conversion from a reference length.
+- `ImageSequence` (`imgcodecs`): a folder, glob or path list that reads like a list of images, decoded lazily in natural order (`img2` before `img10`), with slicing and an optional LRU cache.
+- `imreadParallel`, `processImages`, `convertImages`, `imreadCached`, `clearImageCache`: threaded reading, read/process/write loops over folders, batch format conversion with optional resizing, and a process-wide decoded-image cache keyed by path, flags and modification time.
+- `stackImages`, `unstackImages`: build an `(N, H, W[, C])` batch from images of different sizes by resizing or zero-padding, and split it back.
+- `Timer`, `timed`, `benchmarkFunction`/`BenchmarkResult`, `imageMemory`, `formatBytes` (`core`): a lap timer, a timing decorator, a warm-up/repeat micro-benchmark and image memory sizes.
+
 ## [1.0.0] - 2026-11-08
 
 The first stable release: 162 new APIs (135 -> 297), two new subpackages (`cv2u.calib3d`, `cv2u.dnn`), and a one-time
